@@ -1,0 +1,74 @@
+"use strict";
+
+/*
+ * Writes the admin files directly into the file storage of the dev-server ioBroker.
+ *
+ * "dev-server upload" cannot be used while "dev-server watch" runs (on Windows the adapter directory is locked),
+ * and "dev-server watch" does not synchronize the admin directory when jsonConfig is used.
+ * "iobroker upload" would also update the instance object, which makes ioBroker start a second adapter process.
+ * So only the files are written, objects are not touched. After changes of io-package.json use "dev-server upload".
+ */
+
+const fs = require("node:fs");
+const path = require("node:path");
+
+const root = path.join(__dirname, "..");
+const profileDir = path.join(root, ".dev-server", "default");
+const adminDir = path.join(root, "admin");
+const controllerDir = path.join(profileDir, "node_modules", "iobroker.js-controller");
+
+/** directories which are not needed in ioBroker, the React sources are bundled into admin/build */
+const EXCLUDED = new Set(["src", ".watch"]);
+
+/**
+ * @param {string} dir
+ * @returns {string[]} paths relative to the admin directory, with "/" as separator
+ */
+function listFiles(dir) {
+    return fs.readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
+        const full = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+            return EXCLUDED.has(entry.name) && dir === adminDir ? [] : listFiles(full);
+        }
+        return [path.relative(adminDir, full).split(path.sep).join("/")];
+    });
+}
+
+async function main() {
+    if (!fs.existsSync(controllerDir)) {
+        throw new Error(`${controllerDir} not found, run "npx dev-server setup" first`);
+    }
+    const config = JSON.parse(fs.readFileSync(path.join(profileDir, "iobroker-data", "iobroker.json"), "utf8"));
+    const { Client } = require(require.resolve("@iobroker/db-objects-redis", { paths: [controllerDir] }));
+
+    const logger = {
+        silly: () => {},
+        debug: () => {},
+        info: () => {},
+        warn: (/** @type {string} */ msg) => console.warn(msg),
+        error: (/** @type {string} */ msg) => console.error(msg),
+    };
+    const objects = await new Promise((resolve, reject) => {
+        const client = new Client({
+            connection: config.objects,
+            logger,
+            connected: () => resolve(client),
+            disconnected: () => reject(new Error("Cannot connect to the dev-server objects database, is it running?")),
+        });
+    });
+
+    try {
+        const files = listFiles(adminDir);
+        for (const file of files) {
+            await objects.writeFileAsync("state-machine.admin", file, fs.readFileSync(path.join(adminDir, file)));
+        }
+        console.log(`Uploaded ${files.length} admin files`);
+    } finally {
+        await objects.destroy();
+    }
+}
+
+main().catch(err => {
+    console.error(err.message);
+    process.exit(1);
+});

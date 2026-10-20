@@ -1,0 +1,21 @@
+diff --git a/node_modules/ps-tree/index.js b/node_modules/ps-tree/index.js
+index 8db8b3e..e86197f 100644
+--- a/node_modules/ps-tree/index.js
++++ b/node_modules/ps-tree/index.js
+@@ -42,7 +42,15 @@ module.exports = function childrenOfPid(pid, callback) {
+   var processLister;
+   if (process.platform === 'win32') {
+     // See also: https://github.com/nodejs/node-v0.x-archive/issues/2318
+-    processLister = spawn('wmic.exe', ['PROCESS', 'GET', 'Name,ProcessId,ParentProcessId,Status']);
++    // wmic.exe was removed in Windows 11 25H2, query the process list via PowerShell/CIM instead.
++    // Name is the last column so process names containing spaces end up in one field.
++    processLister = spawn('powershell.exe', [
++      '-NoProfile',
++      '-NonInteractive',
++      '-Command',
++      "Write-Output 'ParentProcessId ProcessId Name'; " +
++        'Get-CimInstance Win32_Process | ForEach-Object { "$($_.ParentProcessId) $($_.ProcessId) $($_.Name)" }'
++    ]);
+   } else {
+     processLister = spawn('ps', ['-A', '-o', 'ppid,pid,stat,comm']);
+   }
