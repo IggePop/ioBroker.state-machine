@@ -65,7 +65,7 @@
   "files": [
     "admin{,/!(src)/**}/!(tsconfig|tsconfig.*|.eslintrc).{json,json5}",
     "admin{,/!(src)/**}/*.{html,css,png,svg,jpg,js}",
-    "admin/build/",
+    "admin/build/*.{js,css}",
     "lib/",
     "www/",
     "io-package.json",
@@ -87,8 +87,7 @@
     "lint": "eslint -c eslint.config.mjs .",
     "translate": "translate-adapter",
     "release": "release-script",
-    "dev-server": "dev-server",
-    "postinstall": "patch-package",
+    "dev-server": "patch-package && dev-server",
     "upload:tab": "npm run build && node tools/upload-admin.js"
   },
   "bugs": {

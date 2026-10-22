@@ -29,7 +29,11 @@ import {
     DEFAULT_FUNCTION_WIDTH,
     DEFAULT_STATE_HEIGHT,
     DEFAULT_STATE_WIDTH,
+    findDropParent,
     flowToChart,
+    getInitialStateIds,
+    isDescendantNode,
+    reparentNodes,
 } from "../flow-model";
 import { getDeclarations, validateChart } from "../../../lib/chart-validation";
 
@@ -65,6 +69,55 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
     const [changed, setChanged] = useState(false);
     const [saving, setSaving] = useState(false);
     const [panelTab, setPanelTab] = useState("properties");
+    /** state into which the dragged state would be moved when it is dropped */
+    const [dropTarget, setDropTarget] = useState(/** @type {string | null} */ (null));
+
+    /**
+     * Absolute position and size of a node, as currently shown by React Flow
+     *
+     * @param {string} id
+     * @returns {import("../flow-model").Rect | null}
+     */
+    const getRect = useCallback(
+        id => {
+            const node = reactFlow.getInternalNode(id);
+            if (!node) {
+                return null;
+            }
+            return {
+                ...node.internals.positionAbsolute,
+                width: node.measured.width ?? node.width ?? 0,
+                height: node.measured.height ?? node.height ?? 0,
+            };
+        },
+        [reactFlow],
+    );
+
+    /** @type {import("@xyflow/react").OnNodeDrag<ChartFlowNode>} */
+    const onNodeDrag = useCallback(
+        (_event, node, dragged) => {
+            const target =
+                dragged.length === 1 && node.type === "state" ? findDropParent(nodes, node.id, getRect) : null;
+            // only show a target if the state would really be moved into another parent
+            setDropTarget(target !== (node.parentId || null) ? target : null);
+        },
+        [nodes, getRect],
+    );
+
+    /** @type {import("@xyflow/react").OnNodeDrag<ChartFlowNode>} */
+    const onNodeDragStop = useCallback(
+        (_event, _node, dragged) => {
+            setDropTarget(null);
+            setNodes(nds =>
+                reparentNodes(
+                    nds,
+                    dragged.map(n => n.id),
+                    getRect,
+                ),
+            );
+        },
+        [getRect],
+    );
 
     /** @type {import("@xyflow/react").OnNodesChange<ChartFlowNode>} */
     const onNodesChange = useCallback(changes => {
@@ -228,8 +281,9 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
 
     const save = async () => {
         const newChart = flowToChart(chart, nodes, edges);
-        if (!newChart.states.some(s => s.id === newChart.initial)) {
-            newChart.initial = newChart.states[0]?.id;
+        const topLevel = newChart.states.filter(s => !s.parent);
+        if (!topLevel.some(s => s.id === newChart.initial)) {
+            newChart.initial = topLevel[0]?.id;
         }
         setSaving(true);
         try {
@@ -283,6 +337,22 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [codeSignature]);
 
+    /**
+     * Makes a state the initial state of its level: of its parent, or of the chart for top level states
+     *
+     * @param {string} id
+     */
+    const setInitial = id => {
+        const parentId = nodes.find(n => n.id === id)?.parentId;
+        if (parentId) {
+            updateState(parentId, { initial: id });
+        } else {
+            updateChart({ initial: id });
+        }
+    };
+
+    const initialIds = useMemo(() => getInitialStateIds(nodes, chart.initial), [nodes, chart.initial]);
+
     const displayNodes = useMemo(
         () =>
             nodes.map(n => ({
@@ -290,12 +360,13 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
                 // the extra fields are only read by the node components
                 data: /** @type {any} */ ({
                     ...n.data,
-                    isInitial: n.id === chart.initial,
+                    isInitial: initialIds.has(n.id),
                     isActive: activeIds.includes(n.id),
+                    isDropTarget: n.id === dropTarget,
                     problems: problems.get(n.id),
                 }),
             })),
-        [nodes, chart.initial, activeIds, problems],
+        [nodes, initialIds, activeIds, dropTarget, problems],
     );
     const displayEdges = useMemo(() => {
         /** @type {Record<string, number>} */
@@ -308,10 +379,16 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
                     // like the nodes: no zooming on double click and no panning when dragging the edge
                     className: "nopan",
                     markerEnd,
-                    data: { ...e.data, showPriority: outgoing[e.source] > 1, problems: problems.get(e.id) },
+                    data: {
+                        ...e.data,
+                        showPriority: outgoing[e.source] > 1,
+                        // a transition to an own child which keeps the parent active
+                        inner: isDescendantNode(nodes, e.source, e.target) && !e.data?.transition.reenterParent,
+                        problems: problems.get(e.id),
+                    },
                 }),
         );
-    }, [edges, problems]);
+    }, [edges, nodes, problems]);
 
     return (
         <Box sx={{ display: "flex", height: "100%", minHeight: 0 }}>
@@ -353,6 +430,10 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
                         onConnect={onConnect}
                         onNodeDoubleClick={showProperties}
                         onEdgeDoubleClick={showProperties}
+                        onNodeDrag={onNodeDrag}
+                        onNodeDragStop={onNodeDragStop}
+                        // children above their parents, transitions of children above the parents as well
+                        zIndexMode="auto"
                         connectionMode={ConnectionMode.Loose}
                         colorMode={theme.palette.mode}
                         snapToGrid
@@ -398,6 +479,12 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
                             selectedState={selectedState}
                             selectedTransition={selectedTransition}
                             selectedFunction={selectedFunction}
+                            isInitial={!!selectedState && initialIds.has(selectedState.id)}
+                            toChild={
+                                !!selectedTransition &&
+                                isDescendantNode(nodes, selectedTransition.source, selectedTransition.target)
+                            }
+                            onSetInitial={setInitial}
                             functions={functions}
                             declarations={declarations}
                             onChartChange={updateChart}

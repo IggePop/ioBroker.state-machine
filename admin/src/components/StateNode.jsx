@@ -53,13 +53,16 @@ function InitialMarker() {
  *     state: import("../../../lib/chart-model").ChartState;
  *     isInitial?: boolean;
  *     isActive?: boolean;
+ *     isDropTarget?: boolean;
  *     problems?: string[];
  * }>>} props
  */
 function StateNode({ data, selected }) {
-    const { state, isInitial, isActive, problems } = data;
+    const { state, isInitial, isActive, isDropTarget, problems } = data;
     let borderColor = "text.secondary";
-    if (isActive) {
+    if (isDropTarget) {
+        borderColor = "primary.main";
+    } else if (isActive) {
         borderColor = "success.main";
     } else if (problems) {
         borderColor = "error.main";
@@ -79,11 +82,12 @@ function StateNode({ data, selected }) {
                 sx={{
                     width: "100%",
                     height: "100%",
-                    border: isActive ? 3 : 2,
-                    borderStyle: problems && !isActive ? "dashed" : "solid",
+                    border: isActive || isDropTarget ? 3 : 2,
+                    borderStyle: problems && !isActive && !isDropTarget ? "dashed" : "solid",
                     borderColor,
                     borderRadius: 3,
-                    bgcolor: "background.paper",
+                    // a state shows that the dragged state is moved into it when it is dropped
+                    bgcolor: isDropTarget ? "action.selected" : "background.paper",
                     boxShadow: isActive ? 6 : 0,
                     px: 1,
                     py: 0.5,

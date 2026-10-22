@@ -122,11 +122,12 @@ function StateProperties({ state, tools, isInitial, onChange, onSetInitial, onDe
 /**
  * @param {object} props
  * @param {ChartTransition} props.transition
+ * @param {boolean} props.toChild If the target is a child of the source
  * @param {CodeTools} props.tools
  * @param {(patch: Partial<ChartTransition>) => void} props.onChange
  * @param {() => void} props.onDelete
  */
-function TransitionProperties({ transition, tools, onChange, onDelete }) {
+function TransitionProperties({ transition, toChild, tools, onChange, onDelete }) {
     return (
         <>
             <Typography variant="h6">{I18n.t("Transition")}</Typography>
@@ -148,6 +149,26 @@ function TransitionProperties({ transition, tools, onChange, onDelete }) {
                 helperText={I18n.t("priorityHelp")}
                 onChange={e => onChange({ priority: e.target.value === "" ? undefined : parseInt(e.target.value, 10) })}
             />
+            {toChild && (
+                <Box>
+                    <FormControlLabel
+                        control={
+                            <Checkbox
+                                checked={!!transition.reenterParent}
+                                onChange={e => onChange({ reenterParent: e.target.checked || undefined })}
+                            />
+                        }
+                        label={I18n.t("Leave and enter the parent state again")}
+                    />
+                    <Typography
+                        variant="caption"
+                        component="div"
+                        color="text.secondary"
+                    >
+                        {I18n.t(transition.reenterParent ? "outerToChildHelp" : "innerTransitionHelp")}
+                    </Typography>
+                </Box>
+            )}
             <Button
                 color="error"
                 variant="outlined"
@@ -236,6 +257,9 @@ function ChartProperties({ chart, onChange }) {
  * @param {ChartState | null} props.selectedState
  * @param {ChartTransition | null} props.selectedTransition
  * @param {ChartFunction | null} props.selectedFunction
+ * @param {boolean} props.isInitial If the selected state is the initial state of its level
+ * @param {boolean} props.toChild If the target of the selected transition is a child of its source
+ * @param {(id: string) => void} props.onSetInitial Makes a state the initial state of its level
  * @param {ChartFunction[]} props.functions The current function blocks
  * @param {Declaration[]} props.declarations Names declared in all function blocks
  * @param {(patch: Partial<Chart>) => void} props.onChartChange
@@ -254,9 +278,9 @@ export default function PropertiesPanel(props) {
             <StateProperties
                 state={selectedState}
                 tools={tools}
-                isInitial={chart.initial === selectedState.id}
+                isInitial={props.isInitial}
                 onChange={patch => props.onStateChange(selectedState.id, patch)}
-                onSetInitial={() => props.onChartChange({ initial: selectedState.id })}
+                onSetInitial={() => props.onSetInitial(selectedState.id)}
                 onDelete={() => props.onDeleteNode(selectedState.id)}
             />
         );
@@ -264,6 +288,7 @@ export default function PropertiesPanel(props) {
         content = (
             <TransitionProperties
                 transition={selectedTransition}
+                toChild={props.toChild}
                 tools={tools}
                 onChange={patch => props.onTransitionChange(selectedTransition.id, patch)}
                 onDelete={() => props.onDeleteTransition(selectedTransition.id)}

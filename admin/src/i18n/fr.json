@@ -17,7 +17,7 @@
     "Variables": "Variables",
     "Chart": "Chart",
     "Enabled": "Enabled",
-    "chartHelp": "Drag from the edge of a state to another state to create a transition. Select a state or transition to edit it.",
+    "chartHelp": "Drag from the edge of a state to another state to create a transition. Drop a state into another state to make it a sub state, drag it out again to undo it. Select a state or transition to edit it.",
     "State": "State",
     "Initial state": "Initial state",
     "actionsHelp": "JavaScript using the variables, e.g. light = true; count++;",
@@ -54,5 +54,8 @@
     "Delete function": "Delete function",
     "functionHelp": "JavaScript, executed once when the chart starts. The functions and constants declared here can be used in all conditions and actions of this chart.",
     "\"%s\" is declared in more than one function block": "\"%s\" is declared in more than one function block",
-    "\"%s\" is already the name of a variable": "\"%s\" is already the name of a variable"
+    "\"%s\" is already the name of a variable": "\"%s\" is already the name of a variable",
+    "Leave and enter the parent state again": "Leave and enter the parent state again",
+    "innerTransitionHelp": "Inner transition (dot at the start): the state stays active, only its active child is left. Its entry and exit actions are not executed. Checked after its during action.",
+    "outerToChildHelp": "The state is left and entered again: its exit and entry actions are executed. Checked before its during action, like all transitions leaving it."
 }

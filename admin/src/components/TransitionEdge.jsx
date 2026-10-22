@@ -10,6 +10,14 @@ const DIRECTIONS = {
     [Position.Left]: [-1, 0],
 };
 
+/** The other side of a node */
+const OPPOSITE = {
+    [Position.Top]: Position.Bottom,
+    [Position.Right]: Position.Left,
+    [Position.Bottom]: Position.Top,
+    [Position.Left]: Position.Right,
+};
+
 /**
  * Path of a self transition: a loop which leaves and enters the state on the side of the handles
  *
@@ -37,6 +45,7 @@ function getLoopPath(sx, sy, tx, ty, side) {
  * @param {import("@xyflow/react").EdgeProps<import("@xyflow/react").Edge<{
  *     transition: import("../../../lib/chart-model").ChartTransition;
  *     showPriority?: boolean;
+ *     inner?: boolean;
  *     problems?: string[];
  * }>>} props
  */
@@ -59,7 +68,15 @@ function TransitionEdge(props) {
     const [path, labelX, labelY] =
         source === target
             ? getLoopPath(sourceX, sourceY, targetX, targetY, sourcePosition)
-            : getBezierPath({ sourceX, sourceY, sourcePosition, targetX, targetY, targetPosition });
+            : getBezierPath({
+                  sourceX,
+                  sourceY,
+                  // an inner transition starts at the border of its parent and goes into it, not out of it
+                  sourcePosition: data?.inner ? OPPOSITE[sourcePosition] : sourcePosition,
+                  targetX,
+                  targetY,
+                  targetPosition,
+              });
 
     const error = data?.problems?.join("\n");
     const text = `${data?.showPriority ? `${transition?.priority ?? "?"}: ` : ""}${transition?.label || ""}`;
@@ -71,6 +88,15 @@ function TransitionEdge(props) {
                 markerEnd={markerEnd}
                 style={style}
             />
+            {data?.inner && (
+                // inner transitions start with a dot, like in other statechart tools
+                <circle
+                    cx={sourceX}
+                    cy={sourceY}
+                    r={4}
+                    style={{ fill: "var(--xy-edge-stroke, var(--xy-edge-stroke-default))" }}
+                />
+            )}
             {text && (
                 <EdgeLabelRenderer>
                     <Box

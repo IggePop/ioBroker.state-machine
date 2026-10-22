@@ -36,7 +36,7 @@ function listFiles(dir) {
 
 async function main() {
     if (!fs.existsSync(controllerDir)) {
-        throw new Error(`${controllerDir} not found, run "npx dev-server setup" first`);
+        throw new Error(`${controllerDir} not found, run "npm run dev-server setup" first`);
     }
     const config = JSON.parse(fs.readFileSync(path.join(profileDir, "iobroker-data", "iobroker.json"), "utf8"));
     const { Client } = require(require.resolve("@iobroker/db-objects-redis", { paths: [controllerDir] }));
@@ -49,11 +49,24 @@ async function main() {
         error: (/** @type {string} */ msg) => console.error(msg),
     };
     const objects = await new Promise((resolve, reject) => {
+        const fail = () =>
+            reject(new Error('Cannot connect to the ioBroker of the dev-server, is "npm run dev-server watch" running?'));
+        // the client neither calls "connected" nor "disconnected" if the database is not running at all
+        const timeout = setTimeout(() => {
+            fail();
+            client.destroy().catch(() => {});
+        }, 5000);
         const client = new Client({
             connection: config.objects,
             logger,
-            connected: () => resolve(client),
-            disconnected: () => reject(new Error("Cannot connect to the dev-server objects database, is it running?")),
+            connected: () => {
+                clearTimeout(timeout);
+                resolve(client);
+            },
+            disconnected: () => {
+                clearTimeout(timeout);
+                fail();
+            },
         });
     });
 
