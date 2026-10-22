@@ -50,7 +50,9 @@ async function main() {
     };
     const objects = await new Promise((resolve, reject) => {
         const fail = () =>
-            reject(new Error('Cannot connect to the ioBroker of the dev-server, is "npm run dev-server watch" running?'));
+            reject(
+                new Error('Cannot connect to the ioBroker of the dev-server, is "npm run dev-server watch" running?'),
+            );
         // the client neither calls "connected" nor "disconnected" if the database is not running at all
         const timeout = setTimeout(() => {
             fail();
