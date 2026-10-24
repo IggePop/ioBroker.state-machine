@@ -66,7 +66,8 @@ Requirements: Node.js 20 or newer, js-controller 6.0.11 or newer, admin 7.0.23 o
    (can be changed in the properties of a state).
 5. Draw transitions by dragging from the border of a state to another state (or to itself).
 6. Select a state or transition (or double click it) to edit its actions or label on the right.
-7. Click **Save**. The adapter restarts the chart immediately.
+7. Click **Save**. New charts are paused: start the chart with ▶ in the chart list. After saving, the adapter
+   restarts a running chart immediately.
 
 ### Example: light with motion detector
 
@@ -261,7 +262,8 @@ Voraussetzungen: Node.js 20 oder neuer, js-controller 6.0.11 oder neuer, Admin 7
 5. Übergänge zeichnen: vom Rand eines Zustands zu einem anderen Zustand (oder zu sich selbst) ziehen.
 6. Einen Zustand oder Übergang anklicken (oder doppelklicken), um rechts seine Aktionen bzw. seine
    Beschriftung zu bearbeiten.
-7. **Speichern** klicken. Der Adapter startet das Chart sofort neu.
+7. **Speichern** klicken. Neue Charts sind angehalten: Starte das Chart mit ▶ in der Chart-Liste. Nach dem
+   Speichern startet der Adapter ein laufendes Chart sofort neu.
 
 ### Beispiel: Licht mit Bewegungsmelder
 

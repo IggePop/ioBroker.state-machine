@@ -363,7 +363,6 @@ class TabApp extends GenericApp {
                             >
                                 <ListItemText
                                     primary={`${chart?.name || id.substring(this.chartPrefix.length)}${unsaved ? " •" : ""}`}
-                                    secondary={paused ? I18n.t("paused") : null}
                                     slotProps={{ primary: { color: paused ? "text.secondary" : "text.primary" } }}
                                 />
                                 <Tooltip title={I18n.t(paused ? "Start chart" : "Pause chart")}>
@@ -414,6 +413,8 @@ class TabApp extends GenericApp {
                 onClose={close}
                 maxWidth="xs"
                 fullWidth
+                // otherwise the focus goes back to the "+" button, and the Enter key opens the dialog again
+                disableRestoreFocus
             >
                 <DialogTitle>{I18n.t("New chart")}</DialogTitle>
                 <DialogContent>
@@ -424,7 +425,13 @@ class TabApp extends GenericApp {
                         label={I18n.t("Name")}
                         value={this.state.newChartName}
                         onChange={e => this.setState({ newChartName: e.target.value })}
-                        onKeyDown={e => e.key === "Enter" && name && create()}
+                        onKeyDown={e => {
+                            if (e.key === "Enter" && name) {
+                                // the key is handled here, it must not click another button as well
+                                e.preventDefault();
+                                create();
+                            }
+                        }}
                     />
                 </DialogContent>
                 <DialogActions>

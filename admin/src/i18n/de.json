@@ -58,7 +58,6 @@
     "outerToChildHelp": "Der Zustand wird verlassen und neu betreten: Seine exit- und entry-Aktionen laufen. Wird vor seiner during-Aktion geprüft, wie alle Übergänge, die ihn verlassen.",
     "Pause chart": "Chart anhalten",
     "Start chart": "Chart starten",
-    "paused": "angehalten",
     "Show code": "Code anzeigen",
     "Generated code": "Generierter Code",
     "generatedCodeHelp": "Aus dem Chart generiertes JavaScript. Es zeigt, wie der Adapter das Chart ausführt: die XState-Maschine und die Funktionen, die bei jedem Aufwecken die Übergänge auswählen. Es dient nur zum Lesen, Änderungen haben keine Wirkung.",
