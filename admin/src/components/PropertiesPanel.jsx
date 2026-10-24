@@ -3,6 +3,7 @@ import { Box, Button, Checkbox, FormControlLabel, TextField, Typography } from "
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { I18n } from "@iobroker/adapter-react-v5";
 import { GLOBALS, validateChart, validateCode, validateTransitionLabel } from "../../../lib/chart-validation";
+import { HELPERS } from "../../../lib/chart-helpers";
 import CodeEditor from "./CodeEditor";
 
 /**
@@ -53,7 +54,14 @@ function useCodeTools(symbols, functions, declarations) {
                     detail: I18n.t(s.scope === "input" ? "Input" : s.scope === "output" ? "Output" : "Local"),
                 })),
                 ...declarations.map(d => ({ label: d.name, detail: d.signature || "" })),
-                ...[...GLOBALS].map(name => ({ label: name })),
+                // the helper functions with their signature and description, then the JavaScript globals
+                ...Object.entries(HELPERS).map(([name, helper]) => ({
+                    label: name,
+                    detail: helper.signature,
+                    info: helper.description,
+                    type: "function",
+                })),
+                ...[...GLOBALS].filter(name => !(name in HELPERS)).map(name => ({ label: name })),
                 { label: "after", detail: "after(5, sec)" },
             ],
         };

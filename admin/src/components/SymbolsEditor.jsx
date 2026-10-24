@@ -48,6 +48,67 @@ function InitialValueField({ value, onChange }) {
 }
 
 /**
+ * When an input wakes up the chart. The default values are stored as undefined, so they do not appear in the chart.
+ *
+ * @param {object} props
+ * @param {ChartSymbol} props.symbol
+ * @param {(patch: Partial<ChartSymbol>) => void} props.onChange
+ */
+function InputTriggerFields({ symbol, onChange }) {
+    return (
+        <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+            <TextField
+                select
+                size="small"
+                label={I18n.t("Wake up on")}
+                value={symbol.trigger || "update"}
+                onChange={e => onChange({ trigger: e.target.value === "change" ? "change" : undefined })}
+                sx={{ flex: "1 1 140px" }}
+            >
+                <MenuItem value="update">{I18n.t("every update")}</MenuItem>
+                <MenuItem value="change">{I18n.t("value changes only")}</MenuItem>
+            </TextField>
+            <TextField
+                select
+                size="small"
+                label={I18n.t("Acknowledged (ack)")}
+                value={symbol.ack || "any"}
+                onChange={e =>
+                    onChange({
+                        ack: e.target.value === "any" ? undefined : /** @type {ChartSymbol["ack"]} */ (e.target.value),
+                    })
+                }
+                sx={{ flex: "1 1 140px" }}
+            >
+                <MenuItem value="any">{I18n.t("any")}</MenuItem>
+                <MenuItem value="ack">{I18n.t("confirmed values only")}</MenuItem>
+                <MenuItem value="command">{I18n.t("commands only")}</MenuItem>
+            </TextField>
+            <TextField
+                size="small"
+                type="number"
+                label={I18n.t("Debounce (ms)")}
+                value={symbol.debounceMs || ""}
+                placeholder="0"
+                onChange={e => {
+                    const ms = parseInt(e.target.value, 10);
+                    onChange({ debounceMs: ms > 0 ? ms : undefined });
+                }}
+                slotProps={{ htmlInput: { min: 0, step: 100 } }}
+                sx={{ flex: "1 1 100px" }}
+            />
+            <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ flexBasis: "100%" }}
+            >
+                {I18n.t("triggerHelp")}
+            </Typography>
+        </Box>
+    );
+}
+
+/**
  * @param {object} props
  * @param {ChartSymbol[]} props.symbols
  * @param {(symbols: ChartSymbol[]) => void} props.onChange
@@ -149,6 +210,12 @@ export default function SymbolsEditor({ symbols, onChange, socket, theme }) {
                                     </IconButton>
                                 </Tooltip>
                             </Box>
+                        )}
+                        {symbol.scope === "input" && (
+                            <InputTriggerFields
+                                symbol={symbol}
+                                onChange={patch => update(index, patch)}
+                            />
                         )}
                     </Box>
                 );

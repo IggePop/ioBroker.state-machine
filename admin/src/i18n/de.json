@@ -87,5 +87,14 @@
     "Text": "Text",
     "noteHelp": "Notizen dienen nur der Dokumentation und haben keinen Einfluss auf die Ausführung. Lass eine Notiz über einem Zustand los, dann bewegt sie sich mit ihm.",
     "Comment": "Kommentar",
-    "commentHelp": "Nur zur Dokumentation, wird als Tooltip und im generierten Code angezeigt"
+    "commentHelp": "Nur zur Dokumentation, wird als Tooltip und im generierten Code angezeigt",
+    "Wake up on": "Aufwecken bei",
+    "every update": "jeder Aktualisierung",
+    "value changes only": "nur bei Wertänderung",
+    "Acknowledged (ack)": "Bestätigt (ack)",
+    "any": "egal",
+    "confirmed values only": "nur bestätigte Werte (ack=true)",
+    "commands only": "nur Befehle (ack=false)",
+    "Debounce (ms)": "Entprellen (ms)",
+    "triggerHelp": "Wann dieser Eingang das Chart aufweckt. Aktualisierungen, die wegen ack aussortiert werden, ändern die Variable nicht. Mit Entprellen wird das Chart erst geweckt, wenn der Eingang so lange keine Aktualisierung bekommen hat, mit dem letzten Wert."
 }

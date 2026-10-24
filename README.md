@@ -35,6 +35,8 @@ actions, timers and function blocks are drawn in the ioBroker admin and executed
 - Several independent charts per instance
 - Import and export of charts as JSON files
 - Comments on states, transitions and function blocks, and notes on the canvas
+- Per input: wake up on every update or only on changes, filter by ack, debounce
+- Helper functions: setState, setStateDelayed, sendTo, isTimeBetween, isDaytime, astroTime
 - Undo/redo (Ctrl+Z, Ctrl+Y), copy/cut/paste of states and function blocks (Ctrl+C, Ctrl+X, Ctrl+V), also between charts, and a warning about unsaved changes
 - **Show code**: the JavaScript generated from the chart, showing exactly how the adapter executes it
 
@@ -104,6 +106,18 @@ All parts are optional and may span several lines.
 Without event, a transition is checked whenever any input changes. If a state has several outgoing
 transitions, they are checked in the order of their **priority** (shown at the arrow).
 
+### When inputs wake up the chart
+
+Every input has three settings in the tab **Variables**:
+
+| Setting | Values | Default |
+|---|---|---|
+| **Wake up on** | every update / value changes only | every update |
+| **Acknowledged (ack)** | any / confirmed values only (`ack=true`) / commands only (`ack=false`) | any |
+| **Debounce (ms)** | the chart wakes up only after the input had no update for this time, with its last value | 0 (off) |
+
+Updates filtered out by ack do not change the variable, so it e.g. only contains confirmed values.
+
 ### Actions
 
 Actions and conditions are JavaScript. All variables of the chart can be used directly by their name,
@@ -128,6 +142,24 @@ the state it would be moved into is highlighted. Every level has its own initial
 - A transition from a state to one of its own sub states is an **inner transition** (dot at its start):
   the state stays active, only its active sub state is left, its own `entry`/`exit` are not executed.
   With the option **Leave and enter the parent state again**, it is left and entered again instead.
+
+### Helper functions
+
+In conditions, actions and function blocks:
+
+| Function | Purpose |
+|---|---|
+| `log(message, level)` | writes to the ioBroker log, level `"debug"`, `"info"` (default), `"warn"` or `"error"` |
+| `setState(id, value, ack)` | writes any ioBroker state, `ack` is `false` by default |
+| `setStateDelayed(id, value, delayMs, ack)` | writes after a delay, cancelled when the chart stops |
+| `sendTo(instance, command, message)` | sends a message to an adapter, e.g. `sendTo("telegram.0", "send", { text: "Window open" })` |
+| `isTimeBetween("22:00", "06:00")` | true if the current time is in the range, also over midnight |
+| `isDaytime()` | true between sunrise and sunset |
+| `astroTime("sunset", offsetMinutes)` | time of an astro event today as `Date`: `sunrise`, `sunset`, `dawn`, `dusk`, `solarNoon`, ... |
+
+`isDaytime()` and `astroTime()` use the location of the ioBroker system settings. To read other states, add
+them as inputs: their variables are always up to date and wake up the chart. Time based functions do not wake up
+the chart by themselves, they are evaluated when it wakes up.
 
 ### Function blocks
 
@@ -230,6 +262,8 @@ Adapter ausgeführt.
 - Mehrere unabhängige Charts pro Instanz
 - Import und Export von Charts als JSON-Dateien
 - Kommentare zu Zuständen, Übergängen und Funktionsblöcken sowie Notizen auf der Zeichenfläche
+- Pro Eingang: Aufwecken bei jeder Aktualisierung oder nur bei Änderung, Filter nach ack, Entprellen
+- Hilfsfunktionen: setState, setStateDelayed, sendTo, isTimeBetween, isDaytime, astroTime
 - Rückgängig/Wiederholen (Strg+Z, Strg+Y), Kopieren/Ausschneiden/Einfügen von Zuständen und Funktionsblöcken (Strg+C, Strg+X, Strg+V), auch zwischen Charts, und eine Warnung bei ungespeicherten Änderungen
 - **Code anzeigen**: das aus dem Chart generierte JavaScript, das genau zeigt, wie der Adapter es ausführt
 
@@ -300,6 +334,18 @@ Alle Teile sind optional und dürfen über mehrere Zeilen gehen.
 Ohne Event wird ein Übergang bei jeder Änderung eines beliebigen Eingangs geprüft. Hat ein Zustand
 mehrere ausgehende Übergänge, werden sie in der Reihenfolge ihrer **Priorität** geprüft (steht am Pfeil).
 
+### Wann Eingänge das Chart aufwecken
+
+Jeder Eingang hat im Reiter **Variablen** drei Einstellungen:
+
+| Einstellung | Werte | Standard |
+|---|---|---|
+| **Aufwecken bei** | jeder Aktualisierung / nur bei Wertänderung | jeder Aktualisierung |
+| **Bestätigt (ack)** | egal / nur bestätigte Werte (`ack=true`) / nur Befehle (`ack=false`) | egal |
+| **Entprellen (ms)** | das Chart wird erst geweckt, wenn der Eingang so lange keine Aktualisierung bekommen hat, mit dem letzten Wert | 0 (aus) |
+
+Aktualisierungen, die wegen ack aussortiert werden, ändern die Variable nicht. Sie enthält dann z.B. nur bestätigte Werte.
+
 ### Aktionen
 
 Aktionen und Bedingungen sind JavaScript. Alle Variablen des Charts sind direkt über ihren Namen
@@ -326,6 +372,24 @@ würde. Jede Ebene hat ihren eigenen Startzustand (Punkt mit Pfeil).
   (Punkt am Anfang): Der Zustand bleibt aktiv, nur sein aktiver Unterzustand wird verlassen, seine
   eigenen `entry`/`exit` laufen nicht. Mit der Option **Elternzustand verlassen und neu betreten** wird
   er stattdessen verlassen und neu betreten.
+
+### Hilfsfunktionen
+
+In Bedingungen, Aktionen und Funktionsblöcken:
+
+| Funktion | Zweck |
+|---|---|
+| `log(text, stufe)` | schreibt ins ioBroker-Log, Stufe `"debug"`, `"info"` (Standard), `"warn"` oder `"error"` |
+| `setState(id, wert, ack)` | schreibt einen beliebigen Datenpunkt, `ack` ist standardmäßig `false` |
+| `setStateDelayed(id, wert, ms, ack)` | schreibt verzögert, wird beim Anhalten des Charts verworfen |
+| `sendTo(instanz, befehl, nachricht)` | sendet eine Nachricht an einen Adapter, z.B. `sendTo("telegram.0", "send", { text: "Fenster offen" })` |
+| `isTimeBetween("22:00", "06:00")` | wahr, wenn die aktuelle Uhrzeit im Bereich liegt, auch über Mitternacht |
+| `isDaytime()` | wahr zwischen Sonnenaufgang und Sonnenuntergang |
+| `astroTime("sunset", minuten)` | Zeitpunkt eines Astro-Ereignisses heute als `Date`: `sunrise`, `sunset`, `dawn`, `dusk`, `solarNoon`, ... |
+
+`isDaytime()` und `astroTime()` nutzen den Standort aus den ioBroker-Systemeinstellungen. Andere Datenpunkte liest
+man über Eingänge: Ihre Variablen sind immer aktuell und wecken das Chart. Zeitabhängige Funktionen wecken das
+Chart nicht von selbst, sie werden beim Aufwecken ausgewertet.
 
 ### Funktionsblöcke
 

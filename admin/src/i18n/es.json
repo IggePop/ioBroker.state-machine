@@ -87,5 +87,14 @@
     "Text": "Text",
     "noteHelp": "Notes are only for the documentation, they have no influence on the execution. Drop a note into a state, so it moves together with it.",
     "Comment": "Comment",
-    "commentHelp": "Only for the documentation, shown as tooltip and in the generated code"
+    "commentHelp": "Only for the documentation, shown as tooltip and in the generated code",
+    "Wake up on": "Wake up on",
+    "every update": "every update",
+    "value changes only": "value changes only",
+    "Acknowledged (ack)": "Acknowledged (ack)",
+    "any": "any",
+    "confirmed values only": "confirmed values only (ack=true)",
+    "commands only": "commands only (ack=false)",
+    "Debounce (ms)": "Debounce (ms)",
+    "triggerHelp": "When this input wakes up the chart. Updates filtered out by ack do not change the variable. With debounce, the chart wakes up only after the input had no update for this time, with its last value."
 }

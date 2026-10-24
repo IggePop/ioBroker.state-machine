@@ -24,6 +24,8 @@ class StateMachine extends utils.Adapter {
         this.subscribedInputs = new Set();
         /** chart (re)starts are executed one after another */
         this.chartQueue = Promise.resolve();
+        /** @type {{ latitude: number; longitude: number } | null} for the astro helper functions */
+        this.location = null;
 
         this.on("ready", this.onReady.bind(this));
         this.on("stateChange", this.onStateChange.bind(this));
@@ -40,6 +42,7 @@ class StateMachine extends utils.Adapter {
             common: { name: "Charts" },
             native: {},
         });
+        await this.loadLocation();
 
         const objects = await this.getForeignObjectsAsync(`${this.namespace}.charts.*`, "channel");
         for (const [id, obj] of Object.entries(objects)) {
@@ -52,6 +55,20 @@ class StateMachine extends utils.Adapter {
 
         // the editor saves charts as objects, restart a chart (in its initial state) whenever it changes
         this.subscribeObjects("charts.*");
+    }
+
+    /**
+     * Reads the location of the ioBroker system settings, used by isDaytime() and astroTime()
+     */
+    async loadLocation() {
+        const config = await this.getForeignObjectAsync("system.config");
+        const latitude = parseFloat(String(config?.common?.latitude ?? ""));
+        const longitude = parseFloat(String(config?.common?.longitude ?? ""));
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+            this.location = { latitude, longitude };
+        } else {
+            this.log.info("No location configured in the system settings, isDaytime() and astroTime() do not work");
+        }
     }
 
     /**
@@ -97,9 +114,11 @@ class StateMachine extends utils.Adapter {
 
         const runtime = new ChartRuntime(chartId, chart, {
             readState: async id => (await this.getForeignStateAsync(id))?.val ?? null,
-            writeState: async (id, val) => {
-                await this.setForeignStateAsync(id, val, false);
+            writeState: async (id, val, ack = false) => {
+                await this.setForeignStateAsync(id, val, ack);
             },
+            sendTo: (instance, command, message) => this.sendTo(instance, command, message),
+            getLocation: () => this.location,
             onActiveChange: ({ names, ids }) => {
                 this.setState(`charts.${chartId}.activeState`, names, true);
                 this.setState(`charts.${chartId}.activeStateIds`, JSON.stringify(ids), true);
@@ -243,7 +262,7 @@ class StateMachine extends utils.Adapter {
             return;
         }
         for (const runtime of this.runtimes.values()) {
-            runtime.handleInput(id, state.val);
+            runtime.handleInput(id, state.val, { ack: state.ack });
         }
     }
 }

@@ -73,7 +73,7 @@ export function createTheme(theme, minRows) {
  * @param {string} props.value
  * @param {(value: string) => void} props.onChange
  * @param {(text: string) => Diagnostic[]} props.validate
- * @param {{ label: string; detail?: string }[]} props.completions
+ * @param {{ label: string; detail?: string; info?: string; type?: string }[]} props.completions
  * @param {string} [props.placeholder]
  * @param {string} [props.helperText] Shown if there are no problems
  * @param {number} [props.minRows]
@@ -119,7 +119,7 @@ export default function CodeEditor({
                                 }
                                 return {
                                     from: word.from,
-                                    options: props.current.completions.map(c => ({ ...c, type: "variable" })),
+                                    options: props.current.completions.map(c => ({ type: "variable", ...c })),
                                 };
                             },
                         ],
