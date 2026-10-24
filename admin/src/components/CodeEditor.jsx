@@ -29,7 +29,7 @@ export function translateDiagnostic(diagnostic) {
  * @param {import("@mui/material").Theme} theme
  * @param {number} minRows
  */
-function createTheme(theme, minRows) {
+export function createTheme(theme, minRows) {
     const dark = theme.palette.mode === "dark";
     return [
         EditorView.theme(

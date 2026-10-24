@@ -33,6 +33,7 @@ actions, timers and function blocks are drawn in the ioBroker admin and executed
 - Live view: the active state is highlighted in the editor
 - Code editor with syntax highlighting, error checking (e.g. unknown variables) and completion
 - Several independent charts per instance
+- **Show code**: the JavaScript generated from the chart, showing exactly how the adapter executes it
 
 ### Installation
 
@@ -193,6 +194,7 @@ Adapter ausgeführt.
 - Live-Ansicht: Der aktive Zustand wird im Editor hervorgehoben
 - Code-Editor mit Syntax-Hervorhebung, Fehlerprüfung (z.B. unbekannte Variablen) und Autovervollständigung
 - Mehrere unabhängige Charts pro Instanz
+- **Code anzeigen**: das aus dem Chart generierte JavaScript, das genau zeigt, wie der Adapter es ausführt
 
 ### Installation
 

@@ -12,7 +12,7 @@ import {
     useReactFlow,
 } from "@xyflow/react";
 import { Box, Button, Tab, Tabs, Toolbar } from "@mui/material";
-import { Add as AddIcon, Functions as FunctionIcon, Save as SaveIcon } from "@mui/icons-material";
+import { Add as AddIcon, Code as CodeIcon, Functions as FunctionIcon, Save as SaveIcon } from "@mui/icons-material";
 import { I18n } from "@iobroker/adapter-react-v5";
 
 import StateNode from "./StateNode";
@@ -21,6 +21,8 @@ import TransitionEdge from "./TransitionEdge";
 import PropertiesPanel from "./PropertiesPanel";
 import ResizablePanel from "./ResizablePanel";
 import SymbolsEditor from "./SymbolsEditor";
+import GeneratedCodeDialog from "./GeneratedCodeDialog";
+import { generateChartCode } from "../../../lib/chart-codegen";
 import { translateDiagnostic } from "./CodeEditor";
 import {
     chartToFlow,
@@ -50,6 +52,7 @@ const markerEnd = { type: MarkerType.ArrowClosed, width: 18, height: 18 };
 
 /**
  * @typedef {object} ChartEditorProps
+ * @property {string} chartId ID of the chart (last part of the object ID)
  * @property {Chart} chart The saved chart
  * @property {string[]} activeIds IDs of the currently active states
  * @property {(chart: Chart) => Promise<void>} onSave
@@ -60,7 +63,7 @@ const markerEnd = { type: MarkerType.ArrowClosed, width: 18, height: 18 };
 /**
  * @param {ChartEditorProps} props
  */
-function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme }) {
+function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, socket, theme }) {
     const reactFlow = useReactFlow();
     /** chart level properties (name, symbols, initial state, ...), states and transitions live in nodes/edges */
     const [chart, setChart] = useState(savedChart);
@@ -69,6 +72,8 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
     const [changed, setChanged] = useState(false);
     const [saving, setSaving] = useState(false);
     const [panelTab, setPanelTab] = useState("properties");
+    /** the code generated from the current (maybe unsaved) chart, null if the dialog is closed */
+    const [generatedCode, setGeneratedCode] = useState(/** @type {string | null} */ (null));
     /** state into which the dragged state would be moved when it is dropped */
     const [dropTarget, setDropTarget] = useState(/** @type {string | null} */ (null));
 
@@ -411,6 +416,12 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
                     </Button>
                     <Box sx={{ flex: 1 }} />
                     <Button
+                        startIcon={<CodeIcon />}
+                        onClick={() => setGeneratedCode(generateChartCode(flowToChart(chart, nodes, edges), chartId))}
+                    >
+                        {I18n.t("Show code")}
+                    </Button>
+                    <Button
                         variant="contained"
                         startIcon={<SaveIcon />}
                         disabled={!changed || saving}
@@ -504,6 +515,13 @@ function ChartEditorInner({ chart: savedChart, activeIds, onSave, socket, theme 
                     )}
                 </Box>
             </ResizablePanel>
+            {generatedCode !== null && (
+                <GeneratedCodeDialog
+                    code={generatedCode}
+                    unsaved={changed}
+                    onClose={() => setGeneratedCode(null)}
+                />
+            )}
         </Box>
     );
 }

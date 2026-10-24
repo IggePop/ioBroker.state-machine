@@ -4,7 +4,6 @@
     "New chart": "Neues Chart",
     "Delete chart": "Chart löschen",
     "deleteChartText": "Chart \"%s\" mit allen Datenpunkten löschen?",
-    "disabled": "deaktiviert",
     "noChartsHelp": "Lege links mit \"+\" ein Chart an.",
     "Cannot save chart": "Chart kann nicht gespeichert werden",
     "Name": "Name",
@@ -16,7 +15,6 @@
     "Properties": "Eigenschaften",
     "Variables": "Variablen",
     "Chart": "Chart",
-    "Enabled": "Aktiv",
     "chartHelp": "Ziehe vom Rand eines Zustands zu einem anderen Zustand, um einen Übergang anzulegen. Lass einen Zustand über einem anderen los, um ihn zum Unterzustand zu machen, und zieh ihn wieder heraus, um das rückgängig zu machen. Wähle einen Zustand oder Übergang aus, um ihn zu bearbeiten.",
     "State": "Zustand",
     "Initial state": "Startzustand",
@@ -57,5 +55,15 @@
     "\"%s\" is already the name of a variable": "\"%s\" ist bereits der Name einer Variablen",
     "Leave and enter the parent state again": "Elternzustand verlassen und neu betreten",
     "innerTransitionHelp": "Innerer Übergang (Punkt am Anfang): Der Zustand bleibt aktiv, nur sein aktiver Unterzustand wird verlassen. Seine entry- und exit-Aktionen laufen nicht. Wird nach seiner during-Aktion geprüft.",
-    "outerToChildHelp": "Der Zustand wird verlassen und neu betreten: Seine exit- und entry-Aktionen laufen. Wird vor seiner during-Aktion geprüft, wie alle Übergänge, die ihn verlassen."
+    "outerToChildHelp": "Der Zustand wird verlassen und neu betreten: Seine exit- und entry-Aktionen laufen. Wird vor seiner during-Aktion geprüft, wie alle Übergänge, die ihn verlassen.",
+    "Pause chart": "Chart anhalten",
+    "Start chart": "Chart starten",
+    "paused": "angehalten",
+    "Show code": "Code anzeigen",
+    "Generated code": "Generierter Code",
+    "generatedCodeHelp": "Aus dem Chart generiertes JavaScript. Es zeigt, wie der Adapter das Chart ausführt: die XState-Maschine und die Funktionen, die bei jedem Aufwecken die Übergänge auswählen. Es dient nur zum Lesen, Änderungen haben keine Wirkung.",
+    "generatedCodeUnsaved": "Er enthält die ungespeicherten Änderungen, der Adapter führt noch das gespeicherte Chart aus.",
+    "Copy": "Kopieren",
+    "Copied": "Kopiert",
+    "Close": "Schließen"
 }

@@ -18,7 +18,7 @@ import {
     Tooltip,
     Typography,
 } from "@mui/material";
-import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import { Add as AddIcon, Delete as DeleteIcon, Pause as PauseIcon, PlayArrow as StartIcon } from "@mui/icons-material";
 import { DialogConfirm, GenericApp, I18n, Loader } from "@iobroker/adapter-react-v5";
 import "@xyflow/react/dist/style.css";
 
@@ -163,11 +163,30 @@ class TabApp extends GenericApp {
      * @param {Chart} chart
      */
     async saveChart(id, chart) {
+        // running or paused is only changed with the button in the chart list, the editor may have an old value
+        const enabled = this.state.charts[id]?.native?.chart?.enabled ?? chart.enabled;
         try {
-            await this.socket.extendObject(id, { common: { name: chart.name }, native: { chart } });
+            await this.socket.extendObject(id, {
+                common: { name: chart.name },
+                native: { chart: { ...chart, enabled } },
+            });
         } catch (err) {
             this.showError(`${I18n.t("Cannot save chart")}: ${err}`);
             throw err;
+        }
+    }
+
+    /**
+     * Pauses a running chart or starts a paused one, the adapter applies it immediately
+     *
+     * @param {string} id Object ID of the chart
+     */
+    async toggleChart(id) {
+        const enabled = this.state.charts[id]?.native?.chart?.enabled !== false;
+        try {
+            await this.socket.extendObject(id, { native: { chart: { enabled: !enabled } } });
+        } catch (err) {
+            this.showError(`${I18n.t("Cannot save chart")}: ${err}`);
         }
     }
 
@@ -211,6 +230,7 @@ class TabApp extends GenericApp {
                 >
                     {ids.map(id => {
                         const chart = this.state.charts[id].native?.chart;
+                        const paused = chart?.enabled === false;
                         return (
                             <ListItemButton
                                 key={id}
@@ -219,8 +239,21 @@ class TabApp extends GenericApp {
                             >
                                 <ListItemText
                                     primary={chart?.name || id.substring(this.chartPrefix.length)}
-                                    secondary={chart?.enabled === false ? I18n.t("disabled") : null}
+                                    secondary={paused ? I18n.t("paused") : null}
+                                    slotProps={{ primary: { color: paused ? "text.secondary" : "text.primary" } }}
                                 />
+                                <Tooltip title={I18n.t(paused ? "Start chart" : "Pause chart")}>
+                                    <IconButton
+                                        size="small"
+                                        color={paused ? "success" : "default"}
+                                        onClick={e => {
+                                            e.stopPropagation();
+                                            this.toggleChart(id);
+                                        }}
+                                    >
+                                        {paused ? <StartIcon fontSize="small" /> : <PauseIcon fontSize="small" />}
+                                    </IconButton>
+                                </Tooltip>
                                 <Tooltip title={I18n.t("Delete chart")}>
                                     <IconButton
                                         size="small"
@@ -328,6 +361,7 @@ class TabApp extends GenericApp {
                         <ChartEditor
                             // a new editor for every chart, so no unsaved changes are carried over
                             key={selected}
+                            chartId={selected.substring(this.chartPrefix.length)}
                             chart={chart}
                             activeIds={this.state.activeIds}
                             onSave={newChart => this.saveChart(selected, newChart)}

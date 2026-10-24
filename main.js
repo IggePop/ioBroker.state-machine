@@ -80,8 +80,10 @@ class StateMachine extends utils.Adapter {
 
         await this.createChartStates(chartId);
         if (!chart.enabled) {
-            this.log.info(`Chart "${chart.name}" is disabled`);
+            this.log.info(`Chart "${chart.name}" is paused`);
+            // no state is active, so the editor does not highlight the last active state anymore
             await this.setState(`charts.${chartId}.activeState`, "", true);
+            await this.setState(`charts.${chartId}.activeStateIds`, "[]", true);
             return;
         }
 

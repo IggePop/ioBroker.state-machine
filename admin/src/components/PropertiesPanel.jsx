@@ -1,5 +1,5 @@
 import React, { useMemo } from "react";
-import { Box, Button, Checkbox, FormControlLabel, Switch, TextField, Typography } from "@mui/material";
+import { Box, Button, Checkbox, FormControlLabel, TextField, Typography } from "@mui/material";
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { I18n } from "@iobroker/adapter-react-v5";
 import { GLOBALS, validateChart, validateCode, validateTransitionLabel } from "../../../lib/chart-validation";
@@ -230,15 +230,7 @@ function ChartProperties({ chart, onChange }) {
                 value={chart.name}
                 onChange={e => onChange({ name: e.target.value })}
             />
-            <FormControlLabel
-                control={
-                    <Switch
-                        checked={chart.enabled}
-                        onChange={e => onChange({ enabled: e.target.checked })}
-                    />
-                }
-                label={I18n.t("Enabled")}
-            />
+            {/* running or paused is changed with the button in the chart list */}
             <Typography
                 variant="body2"
                 color="text.secondary"
