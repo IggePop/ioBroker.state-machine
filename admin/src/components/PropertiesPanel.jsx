@@ -231,6 +231,24 @@ function ChartProperties({ chart, onChange }) {
                 onChange={e => onChange({ name: e.target.value })}
             />
             {/* running or paused is changed with the button in the chart list */}
+            <Box>
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={chart.restoreState !== false}
+                            onChange={e => onChange({ restoreState: e.target.checked })}
+                        />
+                    }
+                    label={I18n.t("Restore the state after a restart")}
+                />
+                <Typography
+                    variant="caption"
+                    component="div"
+                    color="text.secondary"
+                >
+                    {I18n.t("restoreStateHelp")}
+                </Typography>
+            </Box>
             <Typography
                 variant="body2"
                 color="text.secondary"

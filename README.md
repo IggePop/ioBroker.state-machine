@@ -93,7 +93,7 @@ All parts are optional and may span several lines.
 | Part | Meaning | Example |
 |---|---|---|
 | `event` | Name of an input: the transition is only checked when this input changes | `motion` |
-| `after(n, unit)` | Instead of an event: the transition is taken *n* units after entering the state. Units: `msec`, `sec`, `min` | `after(30, sec)` |
+| `after(n, unit)` | Instead of an event: valid from *n* units after entering the state on. Then a timer wakes up the chart, and the condition is checked again on every following wakeup. Units: `msec`, `sec`, `min` | `after(30, sec)` |
 | `[condition]` | JavaScript expression, the transition is only taken if it is true | `[temp > 21 && !window]` |
 | `{action}` | JavaScript, executed when the transition is taken | `{count++; light = true;}` |
 
@@ -148,8 +148,19 @@ For every chart, the adapter creates below `state-machine.<instance>.charts.<cha
 |---|---|
 | `activeState` | Name of the active state, nested states as `Parent.Child` |
 | `activeStateIds` | IDs of all active states as JSON |
+| `snapshot` | Stored state of the chart (active states, when they were entered, locals), see below |
 
 The chart itself is stored in the object `state-machine.<instance>.charts.<chart>`.
+
+### Restart of the adapter
+
+After a restart of the adapter or of ioBroker, every chart continues in the states which were active
+before, with its local variables. The entry actions are not executed again, and timers continue with
+their remaining time. A timer which expired while the adapter was stopped is taken right after the start.
+
+The chart starts in its initial state instead if it was changed meanwhile (positions in the editor do not
+count), after saving it in the editor, after pausing it, and if the option **Restore the state after a
+restart** in the chart properties is switched off. Variables declared in function blocks are not restored.
 
 ### Execution model and differences to other statechart tools
 
@@ -159,8 +170,7 @@ The chart itself is stored in the object `state-machine.<instance>.charts.<chart
   the new state. A separate condition action and `/action` are not supported (yet).
 - Transitions are selected like in Stateflow (outer before inner, see above), XState only executes them.
   Pure XState would check the transitions of sub states first.
-- Temporal logic is limited to `after(n, msec|sec|min)`. Temporal transitions are started by a timer,
-  independent of the wakeups.
+- Temporal logic is limited to `after(n, msec|sec|min)`, measured in real time.
 - Conditions and actions use JavaScript, not MATLAB/C syntax.
 
 ### Limitations
@@ -255,7 +265,7 @@ Alle Teile sind optional und dürfen über mehrere Zeilen gehen.
 | Teil | Bedeutung | Beispiel |
 |---|---|---|
 | `event` | Name eines Eingangs: Der Übergang wird nur geprüft, wenn sich dieser Eingang ändert | `motion` |
-| `after(n, einheit)` | Statt eines Events: Der Übergang wird *n* Einheiten nach Betreten des Zustands genommen. Einheiten: `msec`, `sec`, `min` | `after(30, sec)` |
+| `after(n, einheit)` | Statt eines Events: gültig ab *n* Einheiten nach Betreten des Zustands. Dann weckt ein Timer das Chart, und die Bedingung wird bei jedem weiteren Aufwecken erneut geprüft. Einheiten: `msec`, `sec`, `min` | `after(30, sec)` |
 | `[bedingung]` | JavaScript-Ausdruck, der Übergang wird nur genommen, wenn er wahr ist | `[temp > 21 && !fenster]` |
 | `{aktion}` | JavaScript, wird ausgeführt, wenn der Übergang genommen wird | `{zaehler++; licht = true;}` |
 
@@ -313,8 +323,21 @@ Für jedes Chart legt der Adapter unter `state-machine.<instanz>.charts.<chart>`
 |---|---|
 | `activeState` | Name des aktiven Zustands, verschachtelte Zustände als `Eltern.Kind` |
 | `activeStateIds` | IDs aller aktiven Zustände als JSON |
+| `snapshot` | Gespeicherter Zustand des Charts (aktive Zustände, wann sie betreten wurden, lokale Variablen), siehe unten |
 
 Das Chart selbst ist im Objekt `state-machine.<instanz>.charts.<chart>` gespeichert.
+
+### Neustart des Adapters
+
+Nach einem Neustart des Adapters oder von ioBroker macht jedes Chart in den Zuständen weiter, die
+vorher aktiv waren, mit seinen lokalen Variablen. Die entry-Aktionen laufen nicht noch einmal, und Timer
+laufen mit ihrer Restzeit weiter. Ein Timer, der abgelaufen ist, während der Adapter gestoppt war, greift
+gleich nach dem Start.
+
+Im Startzustand beginnt das Chart stattdessen, wenn es zwischendurch geändert wurde (Positionen im
+Editor zählen nicht), nach dem Speichern im Editor, nach dem Anhalten und wenn die Option **Zustand nach
+Neustart wiederherstellen** in den Chart-Eigenschaften ausgeschaltet ist. Variablen, die in
+Funktionsblöcken deklariert sind, werden nicht wiederhergestellt.
 
 ### Ausführung und Unterschiede zu anderen Statechart-Werkzeugen
 
@@ -324,8 +347,7 @@ Das Chart selbst ist im Objekt `state-machine.<instanz>.charts.<chart>` gespeich
   neuen Zustands. Eine eigene Condition Action und `/aktion` werden (noch) nicht unterstützt.
 - Übergänge werden wie bei Stateflow ausgewählt (außen vor innen, siehe oben), XState führt sie nur aus.
   Reines XState würde die Übergänge der Unterzustände zuerst prüfen.
-- Zeitlogik gibt es nur als `after(n, msec|sec|min)`. Zeitgesteuerte Übergänge werden von einem Timer
-  ausgelöst, unabhängig vom Aufwecken.
+- Zeitlogik gibt es nur als `after(n, msec|sec|min)`, gemessen in Echtzeit.
 - Bedingungen und Aktionen sind JavaScript, nicht MATLAB- oder C-Syntax.
 
 ### Einschränkungen

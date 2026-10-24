@@ -45,11 +45,12 @@ class StateMachine extends utils.Adapter {
         for (const [id, obj] of Object.entries(objects)) {
             const chartId = this.getChartId(id);
             if (chartId) {
-                await this.startChart(chartId, obj);
+                // continue where the chart was before the adapter stopped
+                await this.startChart(chartId, obj, true);
             }
         }
 
-        // the editor saves charts as objects, restart a chart whenever it changes
+        // the editor saves charts as objects, restart a chart (in its initial state) whenever it changes
         this.subscribeObjects("charts.*");
     }
 
@@ -71,8 +72,9 @@ class StateMachine extends utils.Adapter {
     /**
      * @param {string} chartId - Chart ID
      * @param {ioBroker.Object | null | undefined} obj - Chart object
+     * @param {boolean} [restore] - Continue with the persisted state instead of the initial state
      */
-    async startChart(chartId, obj) {
+    async startChart(chartId, obj, restore = false) {
         const chart = obj?.type === "channel" ? obj.native?.chart : undefined;
         if (!chart) {
             return;
@@ -96,10 +98,17 @@ class StateMachine extends utils.Adapter {
                 this.setState(`charts.${chartId}.activeState`, names, true);
                 this.setState(`charts.${chartId}.activeStateIds`, JSON.stringify(ids), true);
             },
+            persist: data => {
+                this.setState(`charts.${chartId}.snapshot`, JSON.stringify(data), true);
+            },
+            loadPersisted: async () => {
+                const state = await this.getStateAsync(`charts.${chartId}.snapshot`);
+                return typeof state?.val === "string" && state.val ? JSON.parse(state.val) : null;
+            },
             log: this.log,
         });
         try {
-            await runtime.start();
+            await runtime.start({ restore });
         } catch (err) {
             this.log.error(`Cannot start chart "${chart.name}": ${err.message}`);
             return;
@@ -133,6 +142,17 @@ class StateMachine extends utils.Adapter {
                 name: "Active state",
                 type: "string",
                 role: "text",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        await this.setObjectNotExistsAsync(`charts.${chartId}.snapshot`, {
+            type: "state",
+            common: {
+                name: "Stored state of the chart, restored after a restart of the adapter",
+                type: "string",
+                role: "json",
                 read: true,
                 write: false,
             },
