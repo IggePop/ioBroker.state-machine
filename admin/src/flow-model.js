@@ -280,3 +280,123 @@ export function createId(prefix, existing) {
     }
     return `${prefix}${i}`;
 }
+
+/**
+ * Copied states, function blocks and transitions
+ *
+ * @typedef {{ nodes: ChartFlowNode[]; edges: TransitionFlowEdge[] }} ClipboardContent
+ */
+
+/**
+ * Copies the selected states and function blocks, together with the sub states of copied states
+ * and the transitions between copied states
+ *
+ * @param {ChartFlowNode[]} nodes
+ * @param {TransitionFlowEdge[]} edges
+ * @param {(id: string) => Rect | null} getRect Absolute position and size of a node
+ * @returns {ClipboardContent | null} null if nothing is selected
+ */
+export function copySelection(nodes, edges, getRect) {
+    const selected = new Set(nodes.filter(n => n.selected).map(n => n.id));
+    const copied = new Set(
+        nodes
+            .filter(n => selected.has(n.id) || [...selected].some(id => isDescendantNode(nodes, id, n.id)))
+            .map(n => n.id),
+    );
+    if (!copied.size) {
+        return null;
+    }
+    /** @type {ChartFlowNode[]} */
+    const copiedNodes = [];
+    for (const node of nodes) {
+        if (!copied.has(node.id)) {
+            continue;
+        }
+        // a copy which is independent of the editor state
+        const copy = /** @type {ChartFlowNode} */ ({
+            ...node,
+            selected: false,
+            data: JSON.parse(JSON.stringify(node.data)),
+        });
+        if (node.parentId && !copied.has(node.parentId)) {
+            // the parent is not copied: the copy is a top level state at the same place
+            const rect = getRect(node.id);
+            copy.position = rect ? { x: rect.x, y: rect.y } : { ...node.position };
+            delete copy.parentId;
+            delete copy.expandParent;
+        }
+        copiedNodes.push(copy);
+    }
+    const copiedEdges = edges
+        .filter(e => copied.has(e.source) && copied.has(e.target))
+        .map(e => ({ ...e, selected: false, data: JSON.parse(JSON.stringify(e.data)) }));
+    return { nodes: copiedNodes, edges: copiedEdges };
+}
+
+/**
+ * Inserts copied elements with new IDs, moved by an offset. The inserted elements are selected,
+ * all others are deselected.
+ *
+ * @param {ClipboardContent} clipboard
+ * @param {ChartFlowNode[]} nodes
+ * @param {TransitionFlowEdge[]} edges
+ * @param {number} offset Added to the position of the inserted top level elements
+ * @returns {{ nodes: ChartFlowNode[]; edges: TransitionFlowEdge[] }}
+ */
+export function pasteClipboard(clipboard, nodes, edges, offset) {
+    /** @type {Map<string, string>} old ID -> new ID */
+    const ids = new Map();
+    /** @type {{ id: string }[]} all IDs in use, to create unique ones */
+    const used = [...nodes];
+    for (const node of clipboard.nodes) {
+        const id = createId(node.type === "function" ? "f" : "s", used);
+        ids.set(node.id, id);
+        used.push({ id });
+    }
+
+    /** @type {ChartFlowNode[]} */
+    const pasted = clipboard.nodes.map(node => {
+        const id = /** @type {string} */ (ids.get(node.id));
+        const parentId = node.parentId ? ids.get(node.parentId) : undefined;
+        // children keep their position relative to the (copied) parent
+        const position = parentId ? { ...node.position } : { x: node.position.x + offset, y: node.position.y + offset };
+        if (node.type === "function") {
+            return { ...node, id, position, selected: true, data: { fn: { ...node.data.fn, id } } };
+        }
+        const state = { ...node.data.state, id, parent: parentId ?? null };
+        if (state.initial) {
+            state.initial = ids.get(state.initial);
+        }
+        /** @type {ChartFlowNode} */
+        const copy = { ...node, id, position, selected: true, data: { state } };
+        if (parentId) {
+            copy.parentId = parentId;
+        } else {
+            delete copy.parentId;
+            delete copy.expandParent;
+        }
+        return copy;
+    });
+
+    /** @type {{ id: string }[]} */
+    const usedEdges = [...edges];
+    const pastedEdges = clipboard.edges.map(edge => {
+        const id = createId("t", usedEdges);
+        usedEdges.push({ id });
+        const source = /** @type {string} */ (ids.get(edge.source));
+        const target = /** @type {string} */ (ids.get(edge.target));
+        return {
+            ...edge,
+            id,
+            source,
+            target,
+            selected: true,
+            data: { transition: { ...edge.data?.transition, id, source, target } },
+        };
+    });
+
+    return {
+        nodes: sortParentsFirst([...nodes.map(n => ({ ...n, selected: false })), ...pasted]),
+        edges: [...edges.map(e => ({ ...e, selected: false })), ...pastedEdges],
+    };
+}

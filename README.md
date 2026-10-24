@@ -33,6 +33,8 @@ actions, timers and function blocks are drawn in the ioBroker admin and executed
 - Live view: the active state is highlighted in the editor
 - Code editor with syntax highlighting, error checking (e.g. unknown variables) and completion
 - Several independent charts per instance
+- Import and export of charts as JSON files
+- Undo/redo (Ctrl+Z, Ctrl+Y), copy/cut/paste of states and function blocks (Ctrl+C, Ctrl+X, Ctrl+V), also between charts, and a warning about unsaved changes
 - **Show code**: the JavaScript generated from the chart, showing exactly how the adapter executes it
 
 ### Installation
@@ -140,6 +142,16 @@ function tooWarm(temp) {
 
 Transition label: `[tooWarm(temperature)]{heating = false;}`
 
+### Import and export
+
+- **Export chart** (last icon in the toolbar of the editor) saves the chart as JSON file, including unsaved changes.
+- **Export all charts** (icon above the chart list) saves all saved charts in one file.
+- **Import charts** (icon above the chart list) adds the charts of such a file as new charts, existing charts are not
+  changed. The file is checked before (structure, IDs, references between states and transitions).
+
+Imported charts are **paused**: their variables may refer to states of another system. Check them in the tab
+**Variables**, then start the chart with the button in the chart list.
+
 ### States created by the adapter
 
 For every chart, the adapter creates below `state-machine.<instance>.charts.<chart>`:
@@ -204,6 +216,8 @@ Adapter ausgeführt.
 - Live-Ansicht: Der aktive Zustand wird im Editor hervorgehoben
 - Code-Editor mit Syntax-Hervorhebung, Fehlerprüfung (z.B. unbekannte Variablen) und Autovervollständigung
 - Mehrere unabhängige Charts pro Instanz
+- Import und Export von Charts als JSON-Dateien
+- Rückgängig/Wiederholen (Strg+Z, Strg+Y), Kopieren/Ausschneiden/Einfügen von Zuständen und Funktionsblöcken (Strg+C, Strg+X, Strg+V), auch zwischen Charts, und eine Warnung bei ungespeicherten Änderungen
 - **Code anzeigen**: das aus dem Chart generierte JavaScript, das genau zeigt, wie der Adapter es ausführt
 
 ### Installation
@@ -314,6 +328,18 @@ function zuWarm(temp) {
 ```
 
 Beschriftung eines Übergangs: `[zuWarm(temperatur)]{heizung = false;}`
+
+### Import und Export
+
+- **Chart exportieren** (letztes Symbol in der Werkzeugleiste des Editors) speichert das Chart als JSON-Datei, mit
+  ungespeicherten Änderungen.
+- **Alle Charts exportieren** (Symbol über der Chart-Liste) speichert alle gespeicherten Charts in einer Datei.
+- **Charts importieren** (Symbol über der Chart-Liste) fügt die Charts einer solchen Datei als neue Charts hinzu,
+  vorhandene Charts werden nicht verändert. Die Datei wird vorher geprüft (Aufbau, IDs, Verweise zwischen Zuständen
+  und Übergängen).
+
+Importierte Charts sind **angehalten**: Ihre Variablen können auf Datenpunkte eines anderen Systems verweisen. Prüfe sie
+im Reiter **Variablen** und starte das Chart dann mit dem Knopf in der Chart-Liste.
 
 ### Vom Adapter angelegte Datenpunkte
 

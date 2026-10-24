@@ -23,6 +23,16 @@ export default [
         ],
     },
     {
+        // the admin UI runs in the browser
+        files: ['admin/src/**/*.js'],
+        languageOptions: {
+            globals: {
+                document: 'readonly',
+                window: 'readonly',
+            },
+        },
+    },
+    {
         // you may disable some 'jsdoc' warnings - but using jsdoc is highly recommended
         // as this improves maintainability. jsdoc warnings will not block build process.
         rules: {

@@ -3,5 +3,6 @@
     "extends": "./tsconfig.json",
     "compilerOptions": {},
     "include": ["**/*.js", "**/*.d.ts"],
-    "exclude": ["**/build", "node_modules/", "widgets/"]
+    // the admin UI runs in the browser, it is checked with admin/tsconfig.json (with DOM types)
+    "exclude": ["**/build", "node_modules/", "widgets/", "admin/"]
 }

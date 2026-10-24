@@ -18,13 +18,21 @@ import {
     Tooltip,
     Typography,
 } from "@mui/material";
-import { Add as AddIcon, Delete as DeleteIcon, Pause as PauseIcon, PlayArrow as StartIcon } from "@mui/icons-material";
+import {
+    Add as AddIcon,
+    Delete as DeleteIcon,
+    FileDownload as ExportIcon,
+    FileUpload as ImportIcon,
+    Pause as PauseIcon,
+    PlayArrow as StartIcon,
+} from "@mui/icons-material";
 import { DialogConfirm, GenericApp, I18n, Loader } from "@iobroker/adapter-react-v5";
 import "@xyflow/react/dist/style.css";
 
 import ChartEditor from "./components/ChartEditor";
 import ResizablePanel from "./components/ResizablePanel";
-import { createChart, nameToId } from "../../lib/chart-model";
+import { downloadJson } from "./download";
+import { createChart, createExport, nameToId, parseExport } from "../../lib/chart-model";
 
 /**
  * @typedef {import("../../lib/chart-model").Chart} Chart
@@ -34,6 +42,8 @@ import { createChart, nameToId } from "../../lib/chart-model";
  *     activeIds: string[];
  *     newChartName: string | null;
  *     deleteChart: string | null;
+ *     changed: boolean;
+ *     pendingSelect: { id: string | null } | null;
  * }} TabAppState
  */
 
@@ -69,8 +79,16 @@ class TabApp extends GenericApp {
             activeIds: [],
             newChartName: null,
             deleteChart: null,
+            // if the editor has unsaved changes
+            changed: false,
+            // the chart to show after the user decided what to do with the unsaved changes
+            pendingSelect: null,
         });
         this.chartPrefix = `${this.adapterName}.${this.instance}.charts.`;
+        /** @type {{ current: (() => Promise<void>) | null }} saves the chart in the editor */
+        this.saveRef = { current: null };
+        /** @type {React.RefObject<HTMLInputElement>} hidden file input for importing charts */
+        this.importInput = React.createRef();
         /** @type {string | null} state with the active state IDs of the selected chart */
         this.activeIdsStateId = null;
     }
@@ -81,7 +99,7 @@ class TabApp extends GenericApp {
             const ids = Object.keys(charts).sort();
             this.setState({ charts });
             if (ids.length) {
-                this.selectChart(ids[0]);
+                this.showChart(ids[0]);
             }
         });
         this.socket.subscribeObject(`${this.chartPrefix}*`, this.onObjectChange);
@@ -128,14 +146,29 @@ class TabApp extends GenericApp {
     };
 
     /**
+     * Shows another chart, but asks first if the editor has unsaved changes
+     *
      * @param {string | null} id Object ID of the chart
      */
     selectChart(id) {
+        if (this.state.changed && id !== this.state.selectedChart) {
+            this.setState({ pendingSelect: { id } });
+        } else {
+            this.showChart(id);
+        }
+    }
+
+    /**
+     * Shows another chart, unsaved changes are lost
+     *
+     * @param {string | null} id Object ID of the chart
+     */
+    showChart(id) {
         if (this.activeIdsStateId) {
             this.socket.unsubscribeState(this.activeIdsStateId, this.onActiveIdsChange);
             this.activeIdsStateId = null;
         }
-        this.setState({ selectedChart: id, activeIds: [] });
+        this.setState({ selectedChart: id, activeIds: [], changed: false });
         if (id) {
             this.activeIdsStateId = `${id}.activeStateIds`;
             this.socket.subscribeState(this.activeIdsStateId, false, this.onActiveIdsChange);
@@ -143,13 +176,68 @@ class TabApp extends GenericApp {
     }
 
     /**
+     * @param {string} name Name of the chart
+     * @param {Set<string>} [taken] Object IDs which are used as well, but not yet in the list of charts
+     * @returns {string} an object ID which is not used yet
+     */
+    getUniqueChartId(name, taken = new Set()) {
+        let id = `${this.chartPrefix}${nameToId(name)}`;
+        for (let i = 2; this.state.charts[id] || taken.has(id); i++) {
+            id = `${this.chartPrefix}${nameToId(name)}_${i}`;
+        }
+        return id;
+    }
+
+    /**
+     * Imports the charts of an export file as new charts. They are paused, because their variables
+     * may refer to states of another system.
+     *
+     * @param {File} file
+     */
+    async importFile(file) {
+        let charts;
+        try {
+            charts = parseExport(await file.text());
+        } catch (err) {
+            this.showError(`${I18n.t("Import failed")}: ${err.message}`);
+            return;
+        }
+        const taken = new Set();
+        const ids = [];
+        try {
+            for (const chart of charts) {
+                const id = this.getUniqueChartId(chart.name, taken);
+                taken.add(id);
+                await this.socket.setObject(id, {
+                    type: "channel",
+                    common: { name: chart.name },
+                    native: { chart: { ...chart, enabled: false } },
+                });
+                ids.push(id);
+            }
+        } catch (err) {
+            this.showError(`${I18n.t("Import failed")}: ${err}`);
+        }
+        if (ids.length) {
+            this.showToast(I18n.t("importedCharts", String(ids.length)));
+            this.selectChart(ids[0]);
+        }
+    }
+
+    /** Exports all saved charts to one file */
+    exportAll() {
+        const charts = Object.keys(this.state.charts)
+            .sort()
+            .map(id => this.state.charts[id].native?.chart)
+            .filter(Boolean);
+        downloadJson(`${this.adapterName}.${this.instance}.charts.json`, createExport(charts));
+    }
+
+    /**
      * @param {string} name
      */
     async createChart(name) {
-        let id = `${this.chartPrefix}${nameToId(name)}`;
-        for (let i = 2; this.state.charts[id]; i++) {
-            id = `${this.chartPrefix}${nameToId(name)}_${i}`;
-        }
+        const id = this.getUniqueChartId(name);
         await this.socket.setObject(id, {
             type: "channel",
             common: { name },
@@ -197,7 +285,8 @@ class TabApp extends GenericApp {
         // also deletes the states below the chart
         await this.socket.delObjects(id, false);
         if (this.state.selectedChart === id) {
-            this.selectChart(Object.keys(this.state.charts).find(chartId => chartId !== id) || null);
+            // the chart is deleted, so its unsaved changes do not matter
+            this.showChart(Object.keys(this.state.charts).find(chartId => chartId !== id) || null);
         }
     }
 
@@ -223,6 +312,39 @@ class TabApp extends GenericApp {
                             <AddIcon />
                         </IconButton>
                     </Tooltip>
+                    <Tooltip title={I18n.t("Import charts")}>
+                        <IconButton
+                            size="small"
+                            onClick={() => this.importInput.current?.click()}
+                        >
+                            <ImportIcon />
+                        </IconButton>
+                    </Tooltip>
+                    <Tooltip title={I18n.t("Export all charts")}>
+                        <span>
+                            <IconButton
+                                size="small"
+                                disabled={!ids.length}
+                                onClick={() => this.exportAll()}
+                            >
+                                <ExportIcon />
+                            </IconButton>
+                        </span>
+                    </Tooltip>
+                    <input
+                        ref={this.importInput}
+                        type="file"
+                        accept=".json,application/json"
+                        hidden
+                        onChange={e => {
+                            const file = e.target.files?.[0];
+                            // allows importing the same file again
+                            e.target.value = "";
+                            if (file) {
+                                this.importFile(file);
+                            }
+                        }}
+                    />
                 </Toolbar>
                 <List
                     dense
@@ -231,6 +353,10 @@ class TabApp extends GenericApp {
                     {ids.map(id => {
                         const chart = this.state.charts[id].native?.chart;
                         const paused = chart?.enabled === false;
+                        const unsaved = id === this.state.selectedChart && this.state.changed;
+                        const secondary = [paused && I18n.t("paused"), unsaved && I18n.t("unsaved changes")]
+                            .filter(Boolean)
+                            .join(", ");
                         return (
                             <ListItemButton
                                 key={id}
@@ -238,8 +364,8 @@ class TabApp extends GenericApp {
                                 onClick={() => this.selectChart(id)}
                             >
                                 <ListItemText
-                                    primary={chart?.name || id.substring(this.chartPrefix.length)}
-                                    secondary={paused ? I18n.t("paused") : null}
+                                    primary={`${chart?.name || id.substring(this.chartPrefix.length)}${unsaved ? " •" : ""}`}
+                                    secondary={secondary || null}
                                     slotProps={{ primary: { color: paused ? "text.secondary" : "text.primary" } }}
                                 />
                                 <Tooltip title={I18n.t(paused ? "Start chart" : "Pause chart")}>
@@ -338,6 +464,59 @@ class TabApp extends GenericApp {
         );
     }
 
+    /** @param {boolean} changed */
+    onChangedChange = changed => this.setState({ changed });
+
+    renderUnsavedDialog() {
+        const pending = this.state.pendingSelect;
+        if (!pending) {
+            return null;
+        }
+        const selected = this.state.selectedChart;
+        const name = (selected && this.state.charts[selected]?.native?.chart?.name) || selected;
+        const close = () => this.setState({ pendingSelect: null });
+        return (
+            <Dialog
+                open
+                onClose={close}
+                maxWidth="xs"
+                fullWidth
+            >
+                <DialogTitle>{I18n.t("Unsaved changes")}</DialogTitle>
+                <DialogContent>
+                    <Typography>{I18n.t("unsavedChangesText", String(name))}</Typography>
+                </DialogContent>
+                <DialogActions>
+                    <Button onClick={close}>{I18n.t("Cancel")}</Button>
+                    <Button
+                        color="error"
+                        onClick={() => {
+                            close();
+                            this.showChart(pending.id);
+                        }}
+                    >
+                        {I18n.t("Discard")}
+                    </Button>
+                    <Button
+                        variant="contained"
+                        onClick={async () => {
+                            close();
+                            try {
+                                await this.saveRef.current?.();
+                            } catch {
+                                // saveChart() shows the error, the chart stays open so nothing is lost
+                                return;
+                            }
+                            this.showChart(pending.id);
+                        }}
+                    >
+                        {I18n.t("Save")}
+                    </Button>
+                </DialogActions>
+            </Dialog>
+        );
+    }
+
     renderContent() {
         if (!this.state.loaded) {
             return <Loader themeType={this.state.themeType} />;
@@ -365,6 +544,8 @@ class TabApp extends GenericApp {
                             chart={chart}
                             activeIds={this.state.activeIds}
                             onSave={newChart => this.saveChart(selected, newChart)}
+                            onChangedChange={this.onChangedChange}
+                            saveRef={this.saveRef}
                             socket={this.socket}
                             theme={this.state.theme}
                         />
@@ -379,6 +560,7 @@ class TabApp extends GenericApp {
                 </Box>
                 {this.renderNewChartDialog()}
                 {this.renderDeleteDialog()}
+                {this.renderUnsavedDialog()}
                 {this.renderError()}
                 {this.renderToast()}
             </Box>

@@ -67,5 +67,19 @@
     "Copied": "Copied",
     "Close": "Close",
     "Restore the state after a restart": "Restore the state after a restart",
-    "restoreStateHelp": "After a restart of the adapter or of ioBroker, the chart continues in the states which were active before, with its local variables and the remaining time of its timers. The entry actions are not executed again. After saving the chart or pausing it, it always starts in the initial state."
+    "restoreStateHelp": "After a restart of the adapter or of ioBroker, the chart continues in the states which were active before, with its local variables and the remaining time of its timers. The entry actions are not executed again. After saving the chart or pausing it, it always starts in the initial state.",
+    "Undo": "Undo",
+    "Redo": "Redo",
+    "Paste": "Paste",
+    "Discard": "Discard",
+    "Unsaved changes": "Unsaved changes",
+    "unsaved changes": "unsaved changes",
+    "unsavedChangesText": "The chart \"%s\" has unsaved changes. Save them before showing another chart?",
+    "no changes": "no changes",
+    "Export chart": "Export chart",
+    "including unsaved changes": "including unsaved changes",
+    "Import charts": "Import charts (JSON file)",
+    "Export all charts": "Export all charts",
+    "Import failed": "Import failed",
+    "importedCharts": "%s chart(s) imported. They are paused: check the variables, then start them."
 }

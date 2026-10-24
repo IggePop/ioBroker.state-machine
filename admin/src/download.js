@@ -1,0 +1,18 @@
+/**
+ * Lets the browser download data as JSON file
+ *
+ * @param {string} fileName
+ * @param {any} data
+ */
+export function downloadJson(fileName, data) {
+    const blob = new Blob([`${JSON.stringify(data, null, 2)}\n`], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    // the browser has started the download when the click is handled
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
