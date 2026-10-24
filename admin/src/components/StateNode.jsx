@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import * as xyflow from "@xyflow/react";
 import { Box, Typography } from "@mui/material";
+import CommentBadge from "./CommentBadge";
 
 // @xyflow/react exports "Handle" as component and as type, a named import fails the type check in JS files
 const { Handle, NodeResizer, Position } = xyflow;
@@ -94,13 +95,16 @@ function StateNode({ data, selected }) {
                     overflow: "hidden",
                 }}
             >
-                <Typography
-                    variant="subtitle2"
-                    sx={{ fontWeight: "bold" }}
-                    noWrap
-                >
-                    {state.name}
-                </Typography>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Typography
+                        variant="subtitle2"
+                        sx={{ fontWeight: "bold", flex: 1, minWidth: 0 }}
+                        noWrap
+                    >
+                        {state.name}
+                    </Typography>
+                    <CommentBadge comment={state.comment} />
+                </Box>
                 {ACTIONS.filter(action => state[action]).map(action => (
                     <Typography
                         key={action}

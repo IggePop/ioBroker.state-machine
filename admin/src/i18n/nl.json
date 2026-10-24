@@ -81,5 +81,12 @@
     "Import charts": "Import charts (JSON file)",
     "Export all charts": "Export all charts",
     "Import failed": "Import failed",
-    "importedCharts": "%s chart(s) imported. They are paused: check the variables, then start them."
+    "importedCharts": "%s chart(s) imported. They are paused: check the variables, then start them.",
+    "Add note": "Add note",
+    "Note": "Note",
+    "Delete note": "Delete note",
+    "Text": "Text",
+    "noteHelp": "Notes are only for the documentation, they have no influence on the execution. Drop a note into a state, so it moves together with it.",
+    "Comment": "Comment",
+    "commentHelp": "Only for the documentation, shown as tooltip and in the generated code"
 }

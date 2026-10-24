@@ -353,10 +353,8 @@ class TabApp extends GenericApp {
                     {ids.map(id => {
                         const chart = this.state.charts[id].native?.chart;
                         const paused = chart?.enabled === false;
+                        // unsaved changes are only shown by a dot behind the name
                         const unsaved = id === this.state.selectedChart && this.state.changed;
-                        const secondary = [paused && I18n.t("paused"), unsaved && I18n.t("unsaved changes")]
-                            .filter(Boolean)
-                            .join(", ");
                         return (
                             <ListItemButton
                                 key={id}
@@ -365,7 +363,7 @@ class TabApp extends GenericApp {
                             >
                                 <ListItemText
                                     primary={`${chart?.name || id.substring(this.chartPrefix.length)}${unsaved ? " •" : ""}`}
-                                    secondary={secondary || null}
+                                    secondary={paused ? I18n.t("paused") : null}
                                     slotProps={{ primary: { color: paused ? "text.secondary" : "text.primary" } }}
                                 />
                                 <Tooltip title={I18n.t(paused ? "Start chart" : "Pause chart")}>

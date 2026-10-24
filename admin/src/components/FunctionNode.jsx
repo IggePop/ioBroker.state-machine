@@ -3,6 +3,7 @@ import * as xyflow from "@xyflow/react";
 import { Box, Typography } from "@mui/material";
 import { I18n } from "@iobroker/adapter-react-v5";
 import { getDeclarations } from "../../../lib/chart-validation";
+import CommentBadge from "./CommentBadge";
 
 // see StateNode.jsx why the named import does not work
 const { NodeResizer } = xyflow;
@@ -48,7 +49,19 @@ function FunctionNode({ data, selected }) {
                     overflow: "hidden",
                 }}
             >
-                <Box sx={{ bgcolor: "secondary.main", color: "secondary.contrastText", px: 1, py: 0.25 }}>
+                <Box
+                    sx={{
+                        bgcolor: "secondary.main",
+                        color: "secondary.contrastText",
+                        px: 1,
+                        py: 0.25,
+                        position: "relative",
+                    }}
+                >
+                    <CommentBadge
+                        comment={fn.comment}
+                        sx={{ position: "absolute", right: 4, top: 4 }}
+                    />
                     {signatures.length ? (
                         signatures.map(signature => (
                             <Typography

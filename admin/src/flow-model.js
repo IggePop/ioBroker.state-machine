@@ -7,9 +7,11 @@
  * @typedef {import("../../lib/chart-model").ChartState} ChartState
  * @typedef {import("../../lib/chart-model").ChartTransition} ChartTransition
  * @typedef {import("../../lib/chart-model").ChartFunction} ChartFunction
+ * @typedef {import("../../lib/chart-model").ChartNote} ChartNote
  * @typedef {import("@xyflow/react").Node<{ state: ChartState }, "state">} StateFlowNode
  * @typedef {import("@xyflow/react").Node<{ fn: ChartFunction }, "function">} FunctionFlowNode
- * @typedef {StateFlowNode | FunctionFlowNode} ChartFlowNode
+ * @typedef {import("@xyflow/react").Node<{ note: ChartNote }, "note">} NoteFlowNode
+ * @typedef {StateFlowNode | FunctionFlowNode | NoteFlowNode} ChartFlowNode
  * @typedef {import("@xyflow/react").Edge<{ transition: ChartTransition }>} TransitionFlowEdge
  */
 
@@ -17,6 +19,14 @@ export const DEFAULT_STATE_WIDTH = 180;
 export const DEFAULT_STATE_HEIGHT = 90;
 export const DEFAULT_FUNCTION_WIDTH = 260;
 export const DEFAULT_FUNCTION_HEIGHT = 120;
+export const DEFAULT_NOTE_WIDTH = 200;
+export const DEFAULT_NOTE_HEIGHT = 100;
+
+/** Node types which can be placed in a state (and move together with it) */
+const NESTABLE_TYPES = ["state", "note"];
+
+/** Prefix of the IDs of new nodes */
+export const ID_PREFIXES = { state: "s", function: "f", note: "n" };
 
 /**
  * @param {Chart} chart
@@ -44,8 +54,18 @@ export function chartToFlow(chart) {
         height: fn.height || DEFAULT_FUNCTION_HEIGHT,
         data: { fn },
     }));
+    /** @type {NoteFlowNode[]} */
+    const notes = (chart.notes || []).map(note => ({
+        id: note.id,
+        type: "note",
+        position: { x: note.x, y: note.y },
+        width: note.width || DEFAULT_NOTE_WIDTH,
+        height: note.height || DEFAULT_NOTE_HEIGHT,
+        ...(note.parent && stateIds.has(note.parent) ? { parentId: note.parent, expandParent: true } : {}),
+        data: { note },
+    }));
     return {
-        nodes: sortParentsFirst([...states, ...functions]),
+        nodes: sortParentsFirst([...states, ...functions, ...notes]),
         edges: chart.transitions.map(transition => ({
             id: transition.id,
             type: "transition",
@@ -86,11 +106,19 @@ export function flowToChart(chart, nodes, edges) {
     const states = [];
     /** @type {ChartFunction[]} */
     const functions = [];
+    /** @type {ChartNote[]} */
+    const notes = [];
     for (const node of nodes) {
         if (node.type === "function") {
             functions.push({
                 ...node.data.fn,
                 ...getGeometry(node, DEFAULT_FUNCTION_WIDTH, DEFAULT_FUNCTION_HEIGHT),
+            });
+        } else if (node.type === "note") {
+            notes.push({
+                ...node.data.note,
+                ...getGeometry(node, DEFAULT_NOTE_WIDTH, DEFAULT_NOTE_HEIGHT),
+                parent: node.parentId || null,
             });
         } else {
             states.push({
@@ -104,6 +132,7 @@ export function flowToChart(chart, nodes, edges) {
         ...chart,
         states,
         functions,
+        notes,
         transitions: edges.map(edge => ({
             ...edge.data?.transition,
             id: edge.id,
@@ -197,8 +226,8 @@ export function findDropParent(nodes, id, getRect) {
 }
 
 /**
- * Moves dragged states into the state they were dropped into, or out of their parent.
- * The positions are converted, so the states stay where they were dropped.
+ * Moves dragged states and notes into the state they were dropped into, or out of their parent.
+ * The positions are converted, so they stay where they were dropped.
  *
  * @param {ChartFlowNode[]} nodes
  * @param {string[]} draggedIds
@@ -210,7 +239,7 @@ export function reparentNodes(nodes, draggedIds, getRect) {
     for (const id of draggedIds) {
         const node = result.find(n => n.id === id);
         // a child dragged together with its parent stays in it
-        if (node?.type !== "state" || (node.parentId && draggedIds.includes(node.parentId))) {
+        if (!node || !NESTABLE_TYPES.includes(node.type) || (node.parentId && draggedIds.includes(node.parentId))) {
             continue;
         }
         const parentId = findDropParent(result, id, getRect);
@@ -219,7 +248,7 @@ export function reparentNodes(nodes, draggedIds, getRect) {
             continue;
         }
         const parentRect = parentId ? getRect(parentId) : null;
-        /** @type {StateFlowNode} */
+        /** @type {ChartFlowNode} */
         const moved = {
             ...node,
             position: { x: rect.x - (parentRect?.x ?? 0), y: rect.y - (parentRect?.y ?? 0) },
@@ -349,7 +378,7 @@ export function pasteClipboard(clipboard, nodes, edges, offset) {
     /** @type {{ id: string }[]} all IDs in use, to create unique ones */
     const used = [...nodes];
     for (const node of clipboard.nodes) {
-        const id = createId(node.type === "function" ? "f" : "s", used);
+        const id = createId(ID_PREFIXES[node.type], used);
         ids.set(node.id, id);
         used.push({ id });
     }
@@ -363,12 +392,23 @@ export function pasteClipboard(clipboard, nodes, edges, offset) {
         if (node.type === "function") {
             return { ...node, id, position, selected: true, data: { fn: { ...node.data.fn, id } } };
         }
-        const state = { ...node.data.state, id, parent: parentId ?? null };
-        if (state.initial) {
-            state.initial = ids.get(state.initial);
-        }
         /** @type {ChartFlowNode} */
-        const copy = { ...node, id, position, selected: true, data: { state } };
+        let copy;
+        if (node.type === "note") {
+            copy = {
+                ...node,
+                id,
+                position,
+                selected: true,
+                data: { note: { ...node.data.note, id, parent: parentId ?? null } },
+            };
+        } else {
+            const state = { ...node.data.state, id, parent: parentId ?? null };
+            if (state.initial) {
+                state.initial = ids.get(state.initial);
+            }
+            copy = { ...node, id, position, selected: true, data: { state } };
+        }
         if (parentId) {
             copy.parentId = parentId;
         } else {

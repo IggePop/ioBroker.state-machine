@@ -81,5 +81,12 @@
     "Import charts": "Charts importieren (JSON-Datei)",
     "Export all charts": "Alle Charts exportieren",
     "Import failed": "Import fehlgeschlagen",
-    "importedCharts": "%s Chart(s) importiert. Sie sind angehalten: Prüfe die Variablen und starte sie dann."
+    "importedCharts": "%s Chart(s) importiert. Sie sind angehalten: Prüfe die Variablen und starte sie dann.",
+    "Add note": "Notiz hinzufügen",
+    "Note": "Notiz",
+    "Delete note": "Notiz löschen",
+    "Text": "Text",
+    "noteHelp": "Notizen dienen nur der Dokumentation und haben keinen Einfluss auf die Ausführung. Lass eine Notiz über einem Zustand los, dann bewegt sie sich mit ihm.",
+    "Comment": "Kommentar",
+    "commentHelp": "Nur zur Dokumentation, wird als Tooltip und im generierten Code angezeigt"
 }

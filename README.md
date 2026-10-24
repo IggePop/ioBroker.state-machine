@@ -34,6 +34,7 @@ actions, timers and function blocks are drawn in the ioBroker admin and executed
 - Code editor with syntax highlighting, error checking (e.g. unknown variables) and completion
 - Several independent charts per instance
 - Import and export of charts as JSON files
+- Comments on states, transitions and function blocks, and notes on the canvas
 - Undo/redo (Ctrl+Z, Ctrl+Y), copy/cut/paste of states and function blocks (Ctrl+C, Ctrl+X, Ctrl+V), also between charts, and a warning about unsaved changes
 - **Show code**: the JavaScript generated from the chart, showing exactly how the adapter executes it
 
@@ -142,6 +143,16 @@ function tooWarm(temp) {
 
 Transition label: `[tooWarm(temperature)]{heating = false;}`
 
+### Comments and notes
+
+- **Comment:** states, transitions, function blocks and the chart itself have a field **Comment** in their properties.
+  A speech bubble on the canvas shows that there is a comment, the comment is shown as tooltip.
+- **Notes** (icon **Add note** in the toolbar) are free texts on the canvas, like sticky notes. Drop a note into a
+  state, so it moves together with it.
+
+Comments and notes have no influence on the execution. They are included in the generated code and in exported
+files, and changing them does not prevent restoring the state after a restart.
+
 ### Import and export
 
 - **Export chart** (last icon in the toolbar of the editor) saves the chart as JSON file, including unsaved changes.
@@ -217,6 +228,7 @@ Adapter ausgeführt.
 - Code-Editor mit Syntax-Hervorhebung, Fehlerprüfung (z.B. unbekannte Variablen) und Autovervollständigung
 - Mehrere unabhängige Charts pro Instanz
 - Import und Export von Charts als JSON-Dateien
+- Kommentare zu Zuständen, Übergängen und Funktionsblöcken sowie Notizen auf der Zeichenfläche
 - Rückgängig/Wiederholen (Strg+Z, Strg+Y), Kopieren/Ausschneiden/Einfügen von Zuständen und Funktionsblöcken (Strg+C, Strg+X, Strg+V), auch zwischen Charts, und eine Warnung bei ungespeicherten Änderungen
 - **Code anzeigen**: das aus dem Chart generierte JavaScript, das genau zeigt, wie der Adapter es ausführt
 
@@ -328,6 +340,17 @@ function zuWarm(temp) {
 ```
 
 Beschriftung eines Übergangs: `[zuWarm(temperatur)]{heizung = false;}`
+
+### Kommentare und Notizen
+
+- **Kommentar:** Zustände, Übergänge, Funktionsblöcke und das Chart selbst haben in ihren Eigenschaften ein Feld
+  **Kommentar**. Eine Sprechblase auf der Zeichenfläche zeigt, dass es einen Kommentar gibt, der Kommentar erscheint
+  als Tooltip.
+- **Notizen** (Symbol **Notiz hinzufügen** in der Werkzeugleiste) sind freie Texte auf der Zeichenfläche, wie
+  Haftzettel. Lass eine Notiz über einem Zustand los, dann bewegt sie sich mit ihm.
+
+Kommentare und Notizen haben keinen Einfluss auf die Ausführung. Sie stehen im generierten Code und in exportierten
+Dateien, und wenn sie sich ändern, wird der Zustand nach einem Neustart trotzdem wiederhergestellt.
 
 ### Import und Export
 

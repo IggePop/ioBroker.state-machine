@@ -8,6 +8,7 @@ import CodeEditor from "./CodeEditor";
 /**
  * @typedef {import("../../../lib/chart-model").Chart} Chart
  * @typedef {import("../../../lib/chart-model").ChartFunction} ChartFunction
+ * @typedef {import("../../../lib/chart-model").ChartNote} ChartNote
  * @typedef {import("../../../lib/chart-model").ChartState} ChartState
  * @typedef {import("../../../lib/chart-model").ChartSymbol} ChartSymbol
  * @typedef {import("../../../lib/chart-model").ChartTransition} ChartTransition
@@ -60,6 +61,58 @@ function useCodeTools(symbols, functions, declarations) {
 }
 
 /**
+ * Free text for the documentation, has no influence on the execution
+ *
+ * @param {object} props
+ * @param {string | undefined} props.value
+ * @param {(comment: string | undefined) => void} props.onChange
+ */
+function CommentField({ value, onChange }) {
+    return (
+        <TextField
+            size="small"
+            multiline
+            minRows={2}
+            label={I18n.t("Comment")}
+            value={value || ""}
+            helperText={I18n.t("commentHelp")}
+            // an empty comment is removed, so it does not appear in the stored chart
+            onChange={e => onChange(e.target.value || undefined)}
+        />
+    );
+}
+
+/**
+ * @param {object} props
+ * @param {ChartNote} props.note
+ * @param {(patch: Partial<ChartNote>) => void} props.onChange
+ * @param {() => void} props.onDelete
+ */
+function NoteProperties({ note, onChange, onDelete }) {
+    return (
+        <>
+            <Typography variant="h6">{I18n.t("Note")}</Typography>
+            <TextField
+                multiline
+                minRows={8}
+                label={I18n.t("Text")}
+                value={note.text}
+                helperText={I18n.t("noteHelp")}
+                onChange={e => onChange({ text: e.target.value })}
+            />
+            <Button
+                color="error"
+                variant="outlined"
+                startIcon={<DeleteIcon />}
+                onClick={onDelete}
+            >
+                {I18n.t("Delete note")}
+            </Button>
+        </>
+    );
+}
+
+/**
  * @param {object} props
  * @param {ChartState} props.state
  * @param {CodeTools} props.tools
@@ -107,6 +160,10 @@ function StateProperties({ state, tools, isInitial, onChange, onSetInitial, onDe
             >
                 {I18n.t("actionsHelp")}
             </Typography>
+            <CommentField
+                value={state.comment}
+                onChange={comment => onChange({ comment })}
+            />
             <Button
                 color="error"
                 variant="outlined"
@@ -169,6 +226,10 @@ function TransitionProperties({ transition, toChild, tools, onChange, onDelete }
                     </Typography>
                 </Box>
             )}
+            <CommentField
+                value={transition.comment}
+                onChange={comment => onChange({ comment })}
+            />
             <Button
                 color="error"
                 variant="outlined"
@@ -203,6 +264,10 @@ function FunctionProperties({ fn, tools, onChange, onDelete }) {
                 helperText={I18n.t("functionHelp")}
                 minRows={16}
             />
+            <CommentField
+                value={fn.comment}
+                onChange={comment => onChange({ comment })}
+            />
             <Button
                 color="error"
                 variant="outlined"
@@ -229,6 +294,10 @@ function ChartProperties({ chart, onChange }) {
                 label={I18n.t("Name")}
                 value={chart.name}
                 onChange={e => onChange({ name: e.target.value })}
+            />
+            <CommentField
+                value={chart.comment}
+                onChange={comment => onChange({ comment })}
             />
             {/* running or paused is changed with the button in the chart list */}
             <Box>
@@ -267,6 +336,8 @@ function ChartProperties({ chart, onChange }) {
  * @param {ChartState | null} props.selectedState
  * @param {ChartTransition | null} props.selectedTransition
  * @param {ChartFunction | null} props.selectedFunction
+ * @param {ChartNote | null} props.selectedNote
+ * @param {(id: string, patch: Partial<ChartNote>) => void} props.onNoteChange
  * @param {boolean} props.isInitial If the selected state is the initial state of its level
  * @param {boolean} props.toChild If the target of the selected transition is a child of its source
  * @param {(id: string) => void} props.onSetInitial Makes a state the initial state of its level
@@ -302,6 +373,15 @@ export default function PropertiesPanel(props) {
                 tools={tools}
                 onChange={patch => props.onTransitionChange(selectedTransition.id, patch)}
                 onDelete={() => props.onDeleteTransition(selectedTransition.id)}
+            />
+        );
+    } else if (props.selectedNote) {
+        const note = props.selectedNote;
+        content = (
+            <NoteProperties
+                note={note}
+                onChange={patch => props.onNoteChange(note.id, patch)}
+                onDelete={() => props.onDeleteNode(note.id)}
             />
         );
     } else if (selectedFunction) {

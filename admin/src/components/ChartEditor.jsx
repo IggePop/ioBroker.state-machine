@@ -19,6 +19,7 @@ import {
     ContentPaste as PasteIcon,
     FileDownload as ExportIcon,
     Functions as FunctionIcon,
+    StickyNote2Outlined as NoteIcon,
     Redo as RedoIcon,
     Save as SaveIcon,
     Undo as UndoIcon,
@@ -28,6 +29,7 @@ import { useEditHistory } from "../edit-history";
 
 import StateNode from "./StateNode";
 import FunctionNode from "./FunctionNode";
+import NoteNode from "./NoteNode";
 import TransitionEdge from "./TransitionEdge";
 import PropertiesPanel from "./PropertiesPanel";
 import ResizablePanel from "./ResizablePanel";
@@ -43,6 +45,8 @@ import {
     createId,
     DEFAULT_FUNCTION_HEIGHT,
     DEFAULT_FUNCTION_WIDTH,
+    DEFAULT_NOTE_HEIGHT,
+    DEFAULT_NOTE_WIDTH,
     DEFAULT_STATE_HEIGHT,
     DEFAULT_STATE_WIDTH,
     findDropParent,
@@ -61,7 +65,7 @@ import { getDeclarations, validateChart } from "../../../lib/chart-validation";
  */
 
 // defined outside the component, so React Flow does not re-create them on every render
-const nodeTypes = { state: StateNode, function: FunctionNode };
+const nodeTypes = { state: StateNode, function: FunctionNode, note: NoteNode };
 const edgeTypes = { transition: TransitionEdge };
 const markerEnd = { type: MarkerType.ArrowClosed, width: 18, height: 18 };
 
@@ -183,8 +187,10 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
     const onNodeDrag = useCallback(
         (_event, node, dragged) => {
             const target =
-                dragged.length === 1 && node.type === "state" ? findDropParent(nodes, node.id, getRect) : null;
-            // only show a target if the state would really be moved into another parent
+                dragged.length === 1 && (node.type === "state" || node.type === "note")
+                    ? findDropParent(nodes, node.id, getRect)
+                    : null;
+            // only show a target if the state/note would really be moved into another parent
             setDropTarget(target !== (node.parentId || null) ? target : null);
         },
         [nodes, getRect],
@@ -310,6 +316,20 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
         }
     };
 
+    const addNote = () => {
+        addNode(
+            (id, x, y) => ({
+                id,
+                type: "note",
+                position: { x, y },
+                width: DEFAULT_NOTE_WIDTH,
+                height: DEFAULT_NOTE_HEIGHT,
+                data: { note: { id, text: "", x, y } },
+            }),
+            "n",
+        );
+    };
+
     const addFunction = () => {
         addNode(
             (id, x, y) => ({
@@ -342,6 +362,19 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
         setNodes(nds =>
             nds.map(n =>
                 n.id === id && n.type === "state" ? { ...n, data: { state: { ...n.data.state, ...patch } } } : n,
+            ),
+        );
+    };
+
+    /**
+     * @param {string} id
+     * @param {Partial<import("../../../lib/chart-model").ChartNote>} patch
+     */
+    const updateNote = (id, patch) => {
+        record(`note:${id}:${Object.keys(patch).join()}`);
+        setNodes(nds =>
+            nds.map(n =>
+                n.id === id && n.type === "note" ? { ...n, data: { note: { ...n.data.note, ...patch } } } : n,
             ),
         );
     };
@@ -489,6 +522,7 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
     const selectedNode = selectedNodes.length === 1 && !selectedEdges.length ? selectedNodes[0] : null;
     const selectedState = selectedNode?.type === "state" ? selectedNode.data.state : null;
     const selectedFunction = selectedNode?.type === "function" ? selectedNode.data.fn : null;
+    const selectedNote = selectedNode?.type === "note" ? selectedNode.data.note : null;
     const selectedTransition =
         selectedEdges.length === 1 && !selectedNodes.length ? selectedEdges[0].data?.transition || null : null;
 
@@ -496,11 +530,13 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
     // only the code and the variables matter for the validation, not e.g. the positions which change while dragging
     const codeSignature = JSON.stringify([
         chart.symbols,
-        nodes.map(n =>
-            n.type === "function"
-                ? [n.id, n.data.fn.code]
-                : [n.id, n.data.state.entry, n.data.state.during, n.data.state.exit],
-        ),
+        nodes.map(n => {
+            if (n.type === "function") {
+                return [n.id, n.data.fn.code];
+            }
+            // notes have no code
+            return n.type === "state" ? [n.id, n.data.state.entry, n.data.state.during, n.data.state.exit] : null;
+        }),
         edges.map(e => [e.id, e.data?.transition.label]),
     ]);
     const functionCodes = JSON.stringify(nodes.map(n => (n.type === "function" ? n.data.fn.code : null)));
@@ -638,6 +674,11 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
                         icon={<FunctionIcon />}
                         onClick={addFunction}
                     />
+                    <ToolButton
+                        title={I18n.t("Add note")}
+                        icon={<NoteIcon />}
+                        onClick={addNote}
+                    />
                     <Divider
                         orientation="vertical"
                         flexItem
@@ -709,6 +750,8 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
                             selectedState={selectedState}
                             selectedTransition={selectedTransition}
                             selectedFunction={selectedFunction}
+                            selectedNote={selectedNote}
+                            onNoteChange={updateNote}
                             isInitial={!!selectedState && initialIds.has(selectedState.id)}
                             toChild={
                                 !!selectedTransition &&

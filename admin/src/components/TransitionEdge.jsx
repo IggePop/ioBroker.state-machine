@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import { BaseEdge, EdgeLabelRenderer, getBezierPath, Position } from "@xyflow/react";
 import { Box } from "@mui/material";
+import CommentBadge from "./CommentBadge";
 
 /** Unit vectors pointing away from the node for each handle side */
 const DIRECTIONS = {
@@ -97,7 +98,7 @@ function TransitionEdge(props) {
                     style={{ fill: "var(--xy-edge-stroke, var(--xy-edge-stroke-default))" }}
                 />
             )}
-            {text && (
+            {(text || transition?.comment?.trim()) && (
                 <EdgeLabelRenderer>
                     <Box
                         className="nodrag nopan"
@@ -115,9 +116,13 @@ function TransitionEdge(props) {
                             fontFamily: "monospace",
                             fontSize: 12,
                             whiteSpace: "pre",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: 0.5,
                         }}
                     >
                         {text}
+                        <CommentBadge comment={transition?.comment} />
                     </Box>
                 </EdgeLabelRenderer>
             )}
