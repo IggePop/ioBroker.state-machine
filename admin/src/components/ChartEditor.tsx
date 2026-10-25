@@ -7,12 +7,13 @@ import {
     Controls,
     MarkerType,
     MiniMap,
+    Panel,
     ReactFlow,
     ReactFlowProvider,
     useReactFlow,
 } from "@xyflow/react";
 import type { OnConnect, OnEdgesChange, OnNodeDrag, OnNodesChange } from "@xyflow/react";
-import { Box, Divider, IconButton, Tab, Tabs, Toolbar, Tooltip } from "@mui/material";
+import { Box, Divider, GlobalStyles, IconButton, Tab, Tabs, Toolbar, Tooltip } from "@mui/material";
 import {
     Add as AddIcon,
     Code as CodeIcon,
@@ -20,6 +21,7 @@ import {
     ContentPaste as PasteIcon,
     FileDownload as ExportIcon,
     Functions as FunctionIcon,
+    MonitorHeartOutlined as LiveIcon,
     StickyNote2Outlined as NoteIcon,
     Redo as RedoIcon,
     Save as SaveIcon,
@@ -37,6 +39,9 @@ import PropertiesPanel from "./PropertiesPanel";
 import ResizablePanel from "./ResizablePanel";
 import SymbolsEditor from "./SymbolsEditor";
 import GeneratedCodeDialog from "./GeneratedCodeDialog";
+import HistoryPanel from "./HistoryPanel";
+import LiveValuesPanel from "./LiveValuesPanel";
+import type { HistoryEntry } from "../../../src/lib/chart-runtime";
 import { generateChartCode } from "../../../src/lib/chart-codegen";
 import { createExport } from "../../../src/lib/chart-model";
 import type { Chart, ChartFunction, ChartNote, ChartState, ChartTransition } from "../../../src/lib/chart-model";
@@ -74,6 +79,28 @@ let clipboard: ClipboardContent | null = null;
 
 /** Distance of pasted elements from the copied ones */
 const PASTE_OFFSET = 30;
+
+/** How long a taken transition is highlighted */
+const FLASH_MS = 1500;
+
+/** Key in the browser storage: if the live values are shown on the canvas */
+const SHOW_LIVE_KEY = "statechart.showLiveValues";
+
+function loadShowLive(): boolean {
+    try {
+        return window.localStorage.getItem(SHOW_LIVE_KEY) !== "false";
+    } catch {
+        return true;
+    }
+}
+
+function saveShowLive(show: boolean): void {
+    try {
+        window.localStorage.setItem(SHOW_LIVE_KEY, String(show));
+    } catch {
+        // only a convenience
+    }
+}
 
 /**
  * A button of the toolbar: only an icon, the title is shown as tooltip
@@ -138,6 +165,11 @@ interface ChartEditorProps {
     chart: Chart;
     /** IDs of the currently active states */
     activeIds: string[];
+    /** Current values of the variables, empty if the chart does not run */
+    liveValues: Record<string, any>;
+    /** Starts and transitions of the running chart, null while they are loaded */
+    chartHistory: HistoryEntry[] | null;
+    onClearHistory: () => void;
     onSave: (chart: Chart) => Promise<void>;
     /** Called when the editor gets or loses unsaved changes */
     onChangedChange?: (changed: boolean) => void;
@@ -153,6 +185,9 @@ function ChartEditorInner({
     chartId,
     chart: savedChart,
     activeIds,
+    liveValues,
+    chartHistory,
+    onClearHistory,
     onSave,
     onChangedChange,
     saveRef,
@@ -181,6 +216,32 @@ function ChartEditorInner({
     const [generatedCode, setGeneratedCode] = useState<string | null>(null);
     /** state into which the dragged state would be moved when it is dropped */
     const [dropTarget, setDropTarget] = useState<string | null>(null);
+    const [showLive, setShowLive] = useState(loadShowLive);
+    /** transitions which were just taken by the running chart, they are highlighted for a moment */
+    const [flashing, setFlashing] = useState<ReadonlySet<string>>(new Set());
+    /** time of the newest history entry already seen, null until the history is loaded */
+    const lastSeen = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (!chartHistory) {
+            return;
+        }
+        const newest = chartHistory.reduce((max, e) => Math.max(max, e.ts), lastSeen.current ?? 0);
+        if (lastSeen.current === null) {
+            // the history from before the editor was opened is not animated
+            lastSeen.current = newest;
+            return;
+        }
+        const since = lastSeen.current;
+        lastSeen.current = newest;
+        const ids = chartHistory.filter(e => e.ts > since && e.transition).map(e => e.transition as string);
+        if (!ids.length) {
+            return;
+        }
+        setFlashing(current => new Set([...current, ...ids]));
+        // not cancelled by a newer history, the transitions must not stay highlighted
+        setTimeout(() => setFlashing(current => new Set([...current].filter(id => !ids.includes(id)))), FLASH_MS);
+    }, [chartHistory]);
 
     /**
      * Absolute position and size of a node, as currently shown by React Flow
@@ -604,13 +665,33 @@ function ChartEditorInner({
                         // a transition to an own child which keeps the parent active
                         inner: isDescendantNode(nodes, e.source, e.target) && !e.data?.transition.reenterParent,
                         problems: problems.get(e.id),
+                        flash: flashing.has(e.id),
                     },
                 }) as TransitionFlowEdge,
         );
-    }, [edges, nodes, problems]);
+    }, [edges, nodes, problems, flashing]);
+
+    /**
+     * Selects a transition, e.g. from the history
+     *
+     * @param id ID of the transition
+     */
+    const selectTransition = (id: string): void => {
+        setNodes(nds => nds.map(n => (n.selected ? { ...n, selected: false } : n)));
+        setEdges(eds => eds.map(e => ({ ...e, selected: e.id === id })));
+    };
 
     return (
         <Box sx={{ display: "flex", height: "100%", minHeight: 0 }}>
+            <GlobalStyles
+                styles={{
+                    // a taken transition: thick and colored, then back to normal
+                    "@keyframes statechart-flash": {
+                        from: { strokeWidth: 6, stroke: theme.palette.success.main },
+                        to: { strokeWidth: 1, stroke: theme.palette.success.main },
+                    },
+                }}
+            />
             <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
                 <Toolbar
                     variant="dense"
@@ -683,6 +764,20 @@ function ChartEditorInner({
                         icon={<ExportIcon />}
                         onClick={exportChart}
                     />
+                    <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{ mx: 0.5 }}
+                    />
+                    <ToolButton
+                        title={I18n.t(showLive ? "Hide live values" : "Show live values")}
+                        icon={<LiveIcon />}
+                        color={showLive ? "primary" : "default"}
+                        onClick={() => {
+                            saveShowLive(!showLive);
+                            setShowLive(!showLive);
+                        }}
+                    />
                 </Toolbar>
                 <Box sx={{ flex: 1, minHeight: 0 }}>
                     <ReactFlow
@@ -713,6 +808,14 @@ function ChartEditorInner({
                             pannable
                             zoomable
                         />
+                        {showLive && (
+                            <Panel position="top-left">
+                                <LiveValuesPanel
+                                    symbols={chart.symbols}
+                                    values={liveValues}
+                                />
+                            </Panel>
+                        )}
                     </ReactFlow>
                 </Box>
             </Box>
@@ -735,6 +838,10 @@ function ChartEditorInner({
                     <Tab
                         value="symbols"
                         label={I18n.t("Variables")}
+                    />
+                    <Tab
+                        value="history"
+                        label={I18n.t("History")}
                     />
                 </Tabs>
                 <Box sx={{ p: 2, overflow: "auto", flex: 1 }}>
@@ -761,12 +868,20 @@ function ChartEditorInner({
                             onDeleteNode={id => void reactFlow.deleteElements({ nodes: [{ id }] })}
                             onDeleteTransition={id => void reactFlow.deleteElements({ edges: [{ id }] })}
                         />
-                    ) : (
+                    ) : panelTab === "symbols" ? (
                         <SymbolsEditor
                             symbols={chart.symbols}
                             onChange={symbols => updateChart({ symbols })}
+                            liveValues={liveValues}
                             socket={socket}
                             theme={theme}
+                        />
+                    ) : (
+                        <HistoryPanel
+                            history={chartHistory}
+                            transitionIds={new Set(edges.map(e => e.id))}
+                            onSelectTransition={selectTransition}
+                            onClear={onClearHistory}
                         />
                     )}
                 </Box>

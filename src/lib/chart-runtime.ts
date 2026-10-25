@@ -59,6 +59,28 @@ export interface Location {
 }
 
 /**
+ * An event of a running chart, shown in the history of the editor
+ */
+export interface HistoryEntry {
+    /** Time of the event (ms since 1970) */
+    ts: number;
+    /** "start": the chart was started, "transition": a transition was taken */
+    kind: "start" | "transition";
+    /** Start only: the chart continued with the state from before the restart of the adapter */
+    restored?: boolean;
+    /** Transition only: ID of the transition */
+    transition?: string;
+    /** Transition only: name of the source state */
+    from?: string;
+    /** Transition only: name of the target state */
+    to?: string;
+    /** Transition only: name of the input which woke up the chart, null if a timer (after) did it */
+    trigger?: string | null;
+    /** Name paths of the active states after the event, e.g. "Auto.Heat" */
+    active: string;
+}
+
+/**
  * The connection of a chart to the outside world, provided by the adapter
  */
 export interface RuntimeHost {
@@ -76,6 +98,10 @@ export interface RuntimeHost {
     persist?: (data: PersistedChart) => void;
     /** Loads the stored state of the chart */
     loadPersisted?: () => Promise<PersistedChart | null>;
+    /** Called with the values of all variables when one of them changed, after the chart processed a wakeup */
+    onValues?: (values: Record<string, any>) => void;
+    /** Called with the events of a start or a wakeup, in the order they happened */
+    onHistory?: (entries: HistoryEntry[]) => void;
     log: Pick<ioBroker.Logger, LogLevel>;
 }
 
@@ -90,6 +116,10 @@ interface CheckedTransition {
     source: string;
     /** Used in error messages */
     where: string;
+    /** Name of the source state */
+    from: string;
+    /** Name of the target state */
+    to: string;
     /** Name of the input which must have caused the wakeup */
     event?: string;
     /** Temporal transition: only valid this long after entering the source state */
@@ -139,6 +169,12 @@ export class ChartRuntime {
     readonly debounceTimers = new Map<string, NodeJS.Timeout>();
     /** JSON of the last persisted data, to persist only changes */
     lastPersisted = "";
+    /** name paths of the active leaf states, like the "activeState" state */
+    activeNames = "";
+    /** events which are not yet passed to host.onHistory() */
+    pendingHistory: HistoryEntry[] = [];
+    /** JSON of the last values passed to host.onValues(), to pass only changes */
+    lastValues = "";
     readonly hash: string;
     actor: AnyActor | null = null;
     /** the current time, can be replaced in tests */
@@ -192,9 +228,11 @@ export class ChartRuntime {
 
         const machine = createMachine(this.buildMachineConfig());
         const persisted = options.restore && this.chart.restoreState !== false ? await this.loadPersisted() : null;
+        let restored = false;
         if (persisted) {
             try {
                 this.restore(machine, persisted);
+                restored = true;
                 this.host.log.info(`[${this.chart.name}] Restored the state from before the restart`);
             } catch (err) {
                 this.host.log.warn(`[${this.chart.name}] Cannot restore the state, starting anew: ${err.message}`);
@@ -204,7 +242,9 @@ export class ChartRuntime {
         } else {
             this.startActor(machine);
         }
+        this.pendingHistory.push({ ts: this.now(), kind: "start", restored, active: this.activeNames });
         this.persist();
+        this.publishLive();
     }
 
     /**
@@ -532,6 +572,40 @@ export class ChartRuntime {
         // functions called in conditions may have changed outputs as well
         this.writeChangedOutputs();
         this.persist();
+        this.publishLive();
+    }
+
+    /**
+     * Passes the events since the last call and the changed values of the variables to the host
+     */
+    publishLive(): void {
+        if (this.pendingHistory.length) {
+            const entries = this.pendingHistory;
+            this.pendingHistory = [];
+            this.host.onHistory?.(entries);
+        }
+        if (!this.host.onValues) {
+            return;
+        }
+        const values = Object.fromEntries(this.chart.symbols.map(s => [s.name, this.sandbox[s.name]]));
+        let json;
+        try {
+            json = JSON.stringify(values);
+        } catch {
+            // e.g. a circular object in a local: the values are shown as text then
+            for (const [name, value] of Object.entries(values)) {
+                try {
+                    JSON.stringify(value);
+                } catch {
+                    values[name] = String(value);
+                }
+            }
+            json = JSON.stringify(values);
+        }
+        if (json !== this.lastValues) {
+            this.lastValues = json;
+            this.host.onValues(values);
+        }
     }
 
     /**
@@ -587,6 +661,16 @@ export class ChartRuntime {
                 continue;
             }
             this.actor?.send({ type: `T.${transition.id}` });
+            // XState has executed the transition synchronously, so the active states are the new ones
+            this.pendingHistory.push({
+                ts: this.now(),
+                kind: "transition",
+                transition: transition.id,
+                from: transition.from,
+                to: transition.to,
+                trigger: input,
+                active: this.activeNames,
+            });
             return true;
         }
         return false;
@@ -695,6 +779,8 @@ export class ChartRuntime {
                 id: transition.id,
                 source: source.id,
                 where,
+                from: source.name,
+                to: target.name,
                 event: label.event,
                 afterMs: label.afterMs,
                 condition,
@@ -783,7 +869,8 @@ export class ChartRuntime {
 
         if (ids.join() !== this.activeIds.join()) {
             this.activeIds = ids;
-            this.host.onActiveChange({ names: names.join(", "), ids });
+            this.activeNames = names.join(", ");
+            this.host.onActiveChange({ names: this.activeNames, ids });
         }
     }
 }

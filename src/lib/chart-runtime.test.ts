@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { ChartRuntime, getChartHash } from "./chart-runtime";
-import type { PersistedChart } from "./chart-runtime";
+import type { HistoryEntry, PersistedChart } from "./chart-runtime";
 import type { Chart, ChartState, ChartSymbol } from "./chart-model";
 import { validateCode } from "./chart-validation";
 
@@ -37,6 +37,17 @@ function createHost(states: Record<string, any> = {}) {
             host.persistCount++;
         },
         loadPersisted: async () => host.persisted,
+        /** all values passed to onValues */
+        values: [] as Record<string, any>[],
+        onValues: (values: Record<string, any>) => host.values.push(values),
+        /** all history entries, in the order they were passed to onHistory */
+        history: [] as HistoryEntry[],
+        /** how often onHistory was called */
+        historyCalls: 0,
+        onHistory: (entries: HistoryEntry[]) => {
+            host.history.push(...entries);
+            host.historyCalls++;
+        },
         log: {
             debug: (msg: string) => host.infos.push(`debug: ${msg}`),
             info: (msg: string) => host.infos.push(`info: ${msg}`),
@@ -195,6 +206,71 @@ describe("chart-runtime => ChartRuntime", () => {
         // the third switch on is not allowed anymore
         expect(runtime.sandbox.count).to.equal(2);
         expect(host.active).to.deep.equal(["Off", "On", "Off", "On", "Off"]);
+    });
+});
+
+describe("chart-runtime => live values and history", () => {
+    let runtime: ChartRuntime | undefined;
+    afterEach(() => runtime?.stop());
+
+    it("publishes the values of all variables when the chart starts and when they change", async () => {
+        const host = createHost({ "test.0.motion": false, "test.0.light": true });
+        runtime = new ChartRuntime("light", createLightChart(), host);
+        await runtime.start();
+        expect(host.values).to.deep.equal([{ motion: false, light: false, count: 0 }]);
+
+        runtime.handleInput("test.0.motion", true);
+        expect(host.values.at(-1)).to.deep.equal({ motion: true, light: true, count: 1 });
+        // the same value again changes nothing, so nothing is published
+        runtime.handleInput("test.0.motion", true);
+        expect(host.values).to.have.length(2);
+    });
+
+    it("publishes values which are no JSON as text", async () => {
+        const chart = createLightChart();
+        chart.states[0].entry = "count = {}; count.self = count;";
+        const host = createHost();
+        runtime = new ChartRuntime("light", chart, host);
+        await runtime.start();
+        expect(host.values[0].count).to.equal("[object Object]");
+    });
+
+    it("records the start and every transition with its trigger and the active states", async () => {
+        const host = createHost({ "test.0.motion": false });
+        runtime = new ChartRuntime("light", createLightChart(), host);
+        const now = Date.now();
+        runtime.now = () => now;
+        await runtime.start();
+        expect(host.history).to.deep.equal([{ ts: now, kind: "start", restored: false, active: "Off" }]);
+
+        runtime.handleInput("test.0.motion", true);
+        expect(host.history[1]).to.deep.equal({
+            ts: now,
+            kind: "transition",
+            transition: "t1",
+            from: "Off",
+            to: "On",
+            trigger: "motion",
+            active: "On",
+        });
+        runtime.handleInput("test.0.motion", false);
+        // the temporal transition is valid only after 50 ms, so nothing happened
+        expect(host.history).to.have.length(2);
+        runtime.now = () => now + 60;
+        runtime.wakeup(null);
+        expect(host.history[2]).to.include({ transition: "t2", trigger: null, active: "Off" });
+        expect(host.historyCalls).to.equal(3);
+    });
+
+    it("marks a restored start", async () => {
+        const host = createHost({ "test.0.motion": false });
+        const first = new ChartRuntime("light", createLightChart(), host);
+        await first.start();
+        first.handleInput("test.0.motion", true);
+        first.stop();
+        runtime = new ChartRuntime("light", createLightChart(), host);
+        await runtime.start({ restore: true });
+        expect(host.history.at(-1)).to.include({ kind: "start", restored: true, active: "On" });
     });
 });
 

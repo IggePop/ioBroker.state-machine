@@ -23,6 +23,7 @@ var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__ge
 ));
 var utils = __toESM(require("@iobroker/adapter-core"));
 var import_chart_runtime = require("./lib/chart-runtime");
+const HISTORY_LENGTH = 200;
 class Statechart extends utils.Adapter {
   /** running charts by chart ID */
   runtimes = /* @__PURE__ */ new Map();
@@ -32,6 +33,8 @@ class Statechart extends utils.Adapter {
   chartQueue = Promise.resolve();
   /** for the astro helper functions */
   location = null;
+  /** the last events of each chart by chart ID, newest last, also stored in charts.<chart>.history */
+  histories = /* @__PURE__ */ new Map();
   constructor(options = {}) {
     super({
       ...options,
@@ -60,6 +63,7 @@ class Statechart extends utils.Adapter {
       }
     }
     this.subscribeObjects("charts.*");
+    this.subscribeStates("charts.*.history");
   }
   /**
    * Reads the location of the ioBroker system settings, used by isDaytime() and astroTime()
@@ -89,6 +93,14 @@ class Statechart extends utils.Adapter {
     return chartId.includes(".") ? void 0 : chartId;
   }
   /**
+   * @param id State ID
+   * @returns the chart ID if the state is the history of a chart
+   */
+  getHistoryChartId(id) {
+    const match = /^charts.([^.]+).history$/.exec(id.substring(this.namespace.length + 1));
+    return id.startsWith(`${this.namespace}.`) && match ? match[1] : void 0;
+  }
+  /**
    * @param chartId Chart ID
    * @param obj Chart object
    * @param restore Continue with the persisted state instead of the initial state
@@ -96,9 +108,11 @@ class Statechart extends utils.Adapter {
   async startChart(chartId, obj, restore = false) {
     const chart = obj?.type === "channel" ? obj.native?.chart : void 0;
     if (!chart) {
+      this.histories.delete(chartId);
       return;
     }
     await this.createChartStates(chartId);
+    await this.loadHistory(chartId);
     const empty = !chart.states?.length;
     if (!chart.enabled || empty) {
       if (empty) {
@@ -108,6 +122,7 @@ class Statechart extends utils.Adapter {
       }
       await this.setState(`charts.${chartId}.activeState`, "", true);
       await this.setState(`charts.${chartId}.activeStateIds`, "[]", true);
+      await this.setState(`charts.${chartId}.values`, "{}", true);
       return;
     }
     const runtime = new import_chart_runtime.ChartRuntime(chartId, chart, {
@@ -124,6 +139,10 @@ class Statechart extends utils.Adapter {
       persist: (data) => {
         void this.setState(`charts.${chartId}.snapshot`, JSON.stringify(data), true);
       },
+      onValues: (values) => {
+        void this.setState(`charts.${chartId}.values`, JSON.stringify(values), true);
+      },
+      onHistory: (entries) => this.addHistory(chartId, entries),
       loadPersisted: async () => {
         const state = await this.getStateAsync(`charts.${chartId}.snapshot`);
         return typeof state?.val === "string" && state.val ? JSON.parse(state.val) : null;
@@ -139,6 +158,35 @@ class Statechart extends utils.Adapter {
     this.runtimes.set(chartId, runtime);
     this.updateSubscriptions();
     this.log.info(`Chart "${chart.name}" started`);
+  }
+  /**
+   * Reads the stored history of a chart, if it is not known yet
+   *
+   * @param chartId Chart ID
+   */
+  async loadHistory(chartId) {
+    if (this.histories.has(chartId)) {
+      return;
+    }
+    let history = [];
+    try {
+      const state = await this.getStateAsync(`charts.${chartId}.history`);
+      const parsed = typeof state?.val === "string" && state.val ? JSON.parse(state.val) : [];
+      history = Array.isArray(parsed) ? parsed : [];
+    } catch {
+    }
+    this.histories.set(chartId, history);
+  }
+  /**
+   * Appends events to the history of a chart and stores it
+   *
+   * @param chartId Chart ID
+   * @param entries The new events
+   */
+  addHistory(chartId, entries) {
+    const history = [...this.histories.get(chartId) || [], ...entries].slice(-HISTORY_LENGTH);
+    this.histories.set(chartId, history);
+    void this.setState(`charts.${chartId}.history`, JSON.stringify(history), true);
   }
   /**
    * @param chartId Chart ID
@@ -187,6 +235,28 @@ class Statechart extends utils.Adapter {
         role: "json",
         read: true,
         write: false
+      },
+      native: {}
+    });
+    await this.setObjectNotExistsAsync(`charts.${chartId}.values`, {
+      type: "state",
+      common: {
+        name: "Current values of all variables",
+        type: "string",
+        role: "json",
+        read: true,
+        write: false
+      },
+      native: {}
+    });
+    await this.setObjectNotExistsAsync(`charts.${chartId}.history`, {
+      type: "state",
+      common: {
+        name: `Last ${HISTORY_LENGTH} events: starts and transitions taken, write anything to clear it`,
+        type: "string",
+        role: "json",
+        read: true,
+        write: true
       },
       native: {}
     });
@@ -249,6 +319,14 @@ class Statechart extends utils.Adapter {
    */
   onStateChange(id, state) {
     if (!state) {
+      return;
+    }
+    const historyOf = this.getHistoryChartId(id);
+    if (historyOf) {
+      if (!state.ack) {
+        this.histories.set(historyOf, []);
+        void this.setState(`charts.${historyOf}.history`, "[]", true);
+      }
       return;
     }
     for (const runtime of this.runtimes.values()) {

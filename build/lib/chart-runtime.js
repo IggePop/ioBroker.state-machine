@@ -92,6 +92,12 @@ class ChartRuntime {
   debounceTimers = /* @__PURE__ */ new Map();
   /** JSON of the last persisted data, to persist only changes */
   lastPersisted = "";
+  /** name paths of the active leaf states, like the "activeState" state */
+  activeNames = "";
+  /** events which are not yet passed to host.onHistory() */
+  pendingHistory = [];
+  /** JSON of the last values passed to host.onValues(), to pass only changes */
+  lastValues = "";
   hash;
   actor = null;
   /** the current time, can be replaced in tests */
@@ -126,9 +132,11 @@ class ChartRuntime {
     this.writeChangedOutputs();
     const machine = (0, import_xstate.createMachine)(this.buildMachineConfig());
     const persisted = options.restore && this.chart.restoreState !== false ? await this.loadPersisted() : null;
+    let restored = false;
     if (persisted) {
       try {
         this.restore(machine, persisted);
+        restored = true;
         this.host.log.info(`[${this.chart.name}] Restored the state from before the restart`);
       } catch (err) {
         this.host.log.warn(`[${this.chart.name}] Cannot restore the state, starting anew: ${err.message}`);
@@ -138,7 +146,9 @@ class ChartRuntime {
     } else {
       this.startActor(machine);
     }
+    this.pendingHistory.push({ ts: this.now(), kind: "start", restored, active: this.activeNames });
     this.persist();
+    this.publishLive();
   }
   /**
    * Starts the chart in its initial state, the entry actions are executed
@@ -440,6 +450,38 @@ class ChartRuntime {
     }
     this.writeChangedOutputs();
     this.persist();
+    this.publishLive();
+  }
+  /**
+   * Passes the events since the last call and the changed values of the variables to the host
+   */
+  publishLive() {
+    if (this.pendingHistory.length) {
+      const entries = this.pendingHistory;
+      this.pendingHistory = [];
+      this.host.onHistory?.(entries);
+    }
+    if (!this.host.onValues) {
+      return;
+    }
+    const values = Object.fromEntries(this.chart.symbols.map((s) => [s.name, this.sandbox[s.name]]));
+    let json;
+    try {
+      json = JSON.stringify(values);
+    } catch {
+      for (const [name, value] of Object.entries(values)) {
+        try {
+          JSON.stringify(value);
+        } catch {
+          values[name] = String(value);
+        }
+      }
+      json = JSON.stringify(values);
+    }
+    if (json !== this.lastValues) {
+      this.lastValues = json;
+      this.host.onValues(values);
+    }
   }
   /**
    * Processes an active state and its active children, see the class description
@@ -492,6 +534,15 @@ class ChartRuntime {
         continue;
       }
       this.actor?.send({ type: `T.${transition.id}` });
+      this.pendingHistory.push({
+        ts: this.now(),
+        kind: "transition",
+        transition: transition.id,
+        from: transition.from,
+        to: transition.to,
+        trigger: input,
+        active: this.activeNames
+      });
       return true;
     }
     return false;
@@ -587,6 +638,8 @@ class ChartRuntime {
         id: transition.id,
         source: source.id,
         where,
+        from: source.name,
+        to: target.name,
         event: label.event,
         afterMs: label.afterMs,
         condition
@@ -665,7 +718,8 @@ ${code}
     walk(value, []);
     if (ids.join() !== this.activeIds.join()) {
       this.activeIds = ids;
-      this.host.onActiveChange({ names: names.join(", "), ids });
+      this.activeNames = names.join(", ");
+      this.host.onActiveChange({ names: this.activeNames, ids });
     }
   }
 }

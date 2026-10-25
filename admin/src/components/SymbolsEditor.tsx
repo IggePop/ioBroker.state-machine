@@ -4,6 +4,7 @@ import { Add as AddIcon, Delete as DeleteIcon, ListAlt as SelectIdIcon } from "@
 import { DialogSelectID, I18n } from "@iobroker/adapter-react-v5";
 import type { AdminConnection, IobTheme } from "@iobroker/adapter-react-v5";
 import type { ChartSymbol } from "../../../src/lib/chart-model";
+import { formatValue } from "./LiveValuesPanel";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
 
@@ -114,6 +115,8 @@ function InputTriggerFields({
 interface SymbolsEditorProps {
     symbols: ChartSymbol[];
     onChange: (symbols: ChartSymbol[]) => void;
+    /** Current values of the variables, empty if the chart does not run */
+    liveValues: Record<string, any>;
     socket: AdminConnection;
     theme: IobTheme;
 }
@@ -121,7 +124,13 @@ interface SymbolsEditorProps {
 /**
  * The variables of a chart
  */
-export default function SymbolsEditor({ symbols, onChange, socket, theme }: SymbolsEditorProps): React.JSX.Element {
+export default function SymbolsEditor({
+    symbols,
+    onChange,
+    liveValues,
+    socket,
+    theme,
+}: SymbolsEditorProps): React.JSX.Element {
     /** index of the symbol for which the state selection dialog is open */
     const [selectFor, setSelectFor] = useState<number | null>(null);
 
@@ -211,6 +220,15 @@ export default function SymbolsEditor({ symbols, onChange, socket, theme }: Symb
                                     </IconButton>
                                 </Tooltip>
                             </Box>
+                        )}
+                        {symbol.name in liveValues && (
+                            <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                sx={{ fontFamily: "monospace", wordBreak: "break-all" }}
+                            >
+                                {I18n.t("currentValue", formatValue(liveValues[symbol.name]))}
+                            </Typography>
                         )}
                         {symbol.scope === "input" && (
                             <InputTriggerFields

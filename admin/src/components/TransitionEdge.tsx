@@ -49,6 +49,8 @@ type TransitionEdgeProps = EdgeProps<
         transition: ChartTransition;
         showPriority?: boolean;
         inner?: boolean;
+        /** the transition was just taken by the running chart */
+        flash?: boolean;
         problems?: string[];
     }>
 >;
@@ -90,7 +92,8 @@ function TransitionEdge(props: TransitionEdgeProps): React.JSX.Element {
             <BaseEdge
                 path={path}
                 markerEnd={markerEnd}
-                style={style}
+                // the keyframes are defined in ChartEditor
+                style={data?.flash ? { ...style, animation: "statechart-flash 1.5s ease-out" } : style}
             />
             {data?.inner && (
                 // inner transitions start with a dot, like in other statechart tools

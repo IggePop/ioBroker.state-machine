@@ -30,7 +30,8 @@ actions, timers and function blocks are drawn in the ioBroker admin and executed
 - Timers: `after(5, sec)`
 - Function blocks with your own JavaScript functions, usable in all conditions and actions
 - Inputs and outputs mapped to any ioBroker states
-- Live view: the active state is highlighted in the editor
+- Live view: the active state is highlighted in the editor, the current values of the variables are shown, taken
+  transitions light up, and a history shows when which transition was taken and why
 - Code editor with syntax highlighting, error checking (e.g. unknown variables) and completion
 - Several independent charts per instance
 - Import and export of charts as JSON files
@@ -186,6 +187,22 @@ Transition label: `[tooWarm(temperature)]{heating = false;}`
 Comments and notes have no influence on the execution. They are included in the generated code and in exported
 files, and changing them does not prevent restoring the state after a restart.
 
+### Watching a running chart
+
+While a chart runs, the editor shows what it does:
+
+- The **active states** have a green border.
+- **Live values** (panel at the top left of the canvas, switched on and off with the last icon in the toolbar):
+  the current values of all variables. They are also shown below each variable in the tab **Variables**.
+- A **transition lights up** for a moment when the chart takes it.
+- The tab **History** lists the starts of the chart and the transitions taken, newest first: when, from which state
+  to which, triggered by which input or by a timer (`after`), and which states were active afterwards. Click a
+  transition to select it in the chart. The adapter keeps the last 200 events, also when the editor is closed and
+  after a restart. **Clear history** removes them.
+
+The live values and the history come from the running chart, so they refer to the saved chart, not to unsaved
+changes in the editor.
+
 ### Import and export
 
 - **Export chart** (last icon in the toolbar of the editor) saves the chart as JSON file, including unsaved changes.
@@ -205,6 +222,8 @@ For every chart, the adapter creates below `statechart.<instance>.charts.<chart>
 | `activeState` | Name of the active state, nested states as `Parent.Child` |
 | `activeStateIds` | IDs of all active states as JSON |
 | `snapshot` | Stored state of the chart (active states, when they were entered, locals), see below |
+| `values` | Current values of all variables as JSON, `{}` if the chart does not run |
+| `history` | The last 200 events (starts and transitions taken) as JSON. Writing it without ack clears it |
 
 The chart itself is stored in the object `statechart.<instance>.charts.<chart>`.
 
@@ -257,7 +276,8 @@ Adapter ausgeführt.
 - Timer: `after(5, sec)`
 - Funktionsblöcke mit eigenen JavaScript-Funktionen, nutzbar in allen Bedingungen und Aktionen
 - Eingänge und Ausgänge, die mit beliebigen ioBroker-Datenpunkten verbunden sind
-- Live-Ansicht: Der aktive Zustand wird im Editor hervorgehoben
+- Live-Ansicht: Der aktive Zustand wird im Editor hervorgehoben, die aktuellen Werte der Variablen werden angezeigt,
+  genommene Übergänge leuchten auf, und ein Verlauf zeigt, wann welcher Übergang genommen wurde und warum
 - Code-Editor mit Syntax-Hervorhebung, Fehlerprüfung (z.B. unbekannte Variablen) und Autovervollständigung
 - Mehrere unabhängige Charts pro Instanz
 - Import und Export von Charts als JSON-Dateien
@@ -418,6 +438,22 @@ Beschriftung eines Übergangs: `[zuWarm(temperatur)]{heizung = false;}`
 Kommentare und Notizen haben keinen Einfluss auf die Ausführung. Sie stehen im generierten Code und in exportierten
 Dateien, und wenn sie sich ändern, wird der Zustand nach einem Neustart trotzdem wiederhergestellt.
 
+### Ein laufendes Chart beobachten
+
+Während ein Chart läuft, zeigt der Editor, was es tut:
+
+- Die **aktiven Zustände** haben einen grünen Rahmen.
+- **Live-Werte** (Tafel oben links auf der Zeichenfläche, ein- und ausgeschaltet mit dem letzten Symbol der
+  Werkzeugleiste): die aktuellen Werte aller Variablen. Sie stehen auch unter jeder Variable im Reiter **Variablen**.
+- Ein **Übergang leuchtet kurz auf**, wenn das Chart ihn nimmt.
+- Der Reiter **Verlauf** listet die Starts des Charts und die genommenen Übergänge, der neueste zuerst: wann, von
+  welchem Zustand zu welchem, ausgelöst durch welchen Eingang oder einen Timer (`after`), und welche Zustände danach
+  aktiv waren. Ein Klick auf einen Übergang wählt ihn im Chart aus. Der Adapter behält die letzten 200 Ereignisse,
+  auch bei geschlossenem Editor und über einen Neustart hinweg. **Verlauf leeren** löscht sie.
+
+Live-Werte und Verlauf kommen vom laufenden Chart. Sie beziehen sich also auf das gespeicherte Chart, nicht auf
+ungespeicherte Änderungen im Editor.
+
 ### Import und Export
 
 - **Chart exportieren** (letztes Symbol in der Werkzeugleiste des Editors) speichert das Chart als JSON-Datei, mit
@@ -439,6 +475,8 @@ Für jedes Chart legt der Adapter unter `statechart.<instanz>.charts.<chart>` an
 | `activeState` | Name des aktiven Zustands, verschachtelte Zustände als `Eltern.Kind` |
 | `activeStateIds` | IDs aller aktiven Zustände als JSON |
 | `snapshot` | Gespeicherter Zustand des Charts (aktive Zustände, wann sie betreten wurden, lokale Variablen), siehe unten |
+| `values` | Aktuelle Werte aller Variablen als JSON, `{}` wenn das Chart nicht läuft |
+| `history` | Die letzten 200 Ereignisse (Starts und genommene Übergänge) als JSON. Schreiben ohne ack leert ihn |
 
 Das Chart selbst ist im Objekt `statechart.<instanz>.charts.<chart>` gespeichert.
 
@@ -531,6 +569,9 @@ with, endorsed or sponsored by The MathWorks, Inc.
 -->
 ### **WORK IN PROGRESS**
 * (Igge) the adapter and the editor are written in TypeScript now, no changes of the behavior
+* (Igge) live values of the variables in the editor
+* (Igge) taken transitions light up in the editor
+* (Igge) history of the starts and the transitions taken (tab "History", state `charts.<chart>.history`)
 
 ### 0.1.1 (2026-10-25)
 * (Igge) renamed from "state-machine" to "statechart", because npm does not accept the old name (too similar to an existing package)

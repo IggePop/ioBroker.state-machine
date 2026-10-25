@@ -96,5 +96,19 @@
     "confirmed values only": "confirmed values only (ack=true)",
     "commands only": "commands only (ack=false)",
     "Debounce (ms)": "Debounce (ms)",
-    "triggerHelp": "When this input wakes up the chart. Updates filtered out by ack do not change the variable. With debounce, the chart wakes up only after the input had no update for this time, with its last value."
+    "triggerHelp": "When this input wakes up the chart. Updates filtered out by ack do not change the variable. With debounce, the chart wakes up only after the input had no update for this time, with its last value.",
+    "Live values": "Live values",
+    "The chart does not run": "The chart does not run",
+    "Show live values": "Show the live values of the variables",
+    "Hide live values": "Hide the live values of the variables",
+    "currentValue": "Current value: %s",
+    "History": "History",
+    "Clear history": "Clear history",
+    "historyHelp": "Starts of the chart and the transitions taken, newest first. Click a transition to select it. The adapter keeps the last 200 events, also after a restart.",
+    "noHistory": "Nothing happened yet. The history is filled while the chart runs.",
+    "Chart started": "Chart started",
+    "Chart restored": "Chart continued after a restart",
+    "triggeredBy": "by input %s",
+    "triggeredByTimer": "by a timer (after)",
+    "activeAfter": "then active: %s"
 }

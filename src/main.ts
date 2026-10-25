@@ -7,7 +7,10 @@
 import * as utils from "@iobroker/adapter-core";
 import type { Chart } from "./lib/chart-model";
 import { ChartRuntime } from "./lib/chart-runtime";
-import type { Location } from "./lib/chart-runtime";
+import type { HistoryEntry, Location } from "./lib/chart-runtime";
+
+/** Maximum number of entries in the history of a chart (state charts.<chart>.history) */
+const HISTORY_LENGTH = 200;
 
 class Statechart extends utils.Adapter {
     /** running charts by chart ID */
@@ -18,6 +21,8 @@ class Statechart extends utils.Adapter {
     private chartQueue = Promise.resolve();
     /** for the astro helper functions */
     private location: Location | null = null;
+    /** the last events of each chart by chart ID, newest last, also stored in charts.<chart>.history */
+    private histories = new Map<string, HistoryEntry[]>();
 
     public constructor(options: Partial<utils.AdapterOptions> = {}) {
         super({
@@ -52,6 +57,8 @@ class Statechart extends utils.Adapter {
 
         // the editor saves charts as objects, restart a chart (in its initial state) whenever it changes
         this.subscribeObjects("charts.*");
+        // the editor clears the history by writing to it
+        this.subscribeStates("charts.*.history");
     }
 
     /**
@@ -84,6 +91,15 @@ class Statechart extends utils.Adapter {
     }
 
     /**
+     * @param id State ID
+     * @returns the chart ID if the state is the history of a chart
+     */
+    private getHistoryChartId(id: string): string | undefined {
+        const match = /^charts.([^.]+).history$/.exec(id.substring(this.namespace.length + 1));
+        return id.startsWith(`${this.namespace}.`) && match ? match[1] : undefined;
+    }
+
+    /**
      * @param chartId Chart ID
      * @param obj Chart object
      * @param restore Continue with the persisted state instead of the initial state
@@ -91,10 +107,13 @@ class Statechart extends utils.Adapter {
     private async startChart(chartId: string, obj: ioBroker.Object | null | undefined, restore = false): Promise<void> {
         const chart: Chart | undefined = obj?.type === "channel" ? obj.native?.chart : undefined;
         if (!chart) {
+            // e.g. the chart was deleted
+            this.histories.delete(chartId);
             return;
         }
 
         await this.createChartStates(chartId);
+        await this.loadHistory(chartId);
         // e.g. a new chart, which was just created in the editor: nothing to execute, but no error either
         const empty = !chart.states?.length;
         if (!chart.enabled || empty) {
@@ -106,6 +125,8 @@ class Statechart extends utils.Adapter {
             // no state is active, so the editor does not highlight the last active state anymore
             await this.setState(`charts.${chartId}.activeState`, "", true);
             await this.setState(`charts.${chartId}.activeStateIds`, "[]", true);
+            // the editor shows no values of a chart which does not run
+            await this.setState(`charts.${chartId}.values`, "{}", true);
             return;
         }
 
@@ -123,6 +144,10 @@ class Statechart extends utils.Adapter {
             persist: data => {
                 void this.setState(`charts.${chartId}.snapshot`, JSON.stringify(data), true);
             },
+            onValues: values => {
+                void this.setState(`charts.${chartId}.values`, JSON.stringify(values), true);
+            },
+            onHistory: entries => this.addHistory(chartId, entries),
             loadPersisted: async () => {
                 const state = await this.getStateAsync(`charts.${chartId}.snapshot`);
                 return typeof state?.val === "string" && state.val ? JSON.parse(state.val) : null;
@@ -138,6 +163,38 @@ class Statechart extends utils.Adapter {
         this.runtimes.set(chartId, runtime);
         this.updateSubscriptions();
         this.log.info(`Chart "${chart.name}" started`);
+    }
+
+    /**
+     * Reads the stored history of a chart, if it is not known yet
+     *
+     * @param chartId Chart ID
+     */
+    private async loadHistory(chartId: string): Promise<void> {
+        if (this.histories.has(chartId)) {
+            return;
+        }
+        let history: HistoryEntry[] = [];
+        try {
+            const state = await this.getStateAsync(`charts.${chartId}.history`);
+            const parsed = typeof state?.val === "string" && state.val ? JSON.parse(state.val) : [];
+            history = Array.isArray(parsed) ? parsed : [];
+        } catch {
+            // an invalid history is replaced by a new one
+        }
+        this.histories.set(chartId, history);
+    }
+
+    /**
+     * Appends events to the history of a chart and stores it
+     *
+     * @param chartId Chart ID
+     * @param entries The new events
+     */
+    private addHistory(chartId: string, entries: HistoryEntry[]): void {
+        const history = [...(this.histories.get(chartId) || []), ...entries].slice(-HISTORY_LENGTH);
+        this.histories.set(chartId, history);
+        void this.setState(`charts.${chartId}.history`, JSON.stringify(history), true);
     }
 
     /**
@@ -188,6 +245,28 @@ class Statechart extends utils.Adapter {
                 role: "json",
                 read: true,
                 write: false,
+            },
+            native: {},
+        });
+        await this.setObjectNotExistsAsync(`charts.${chartId}.values`, {
+            type: "state",
+            common: {
+                name: "Current values of all variables",
+                type: "string",
+                role: "json",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        await this.setObjectNotExistsAsync(`charts.${chartId}.history`, {
+            type: "state",
+            common: {
+                name: `Last ${HISTORY_LENGTH} events: starts and transitions taken, write anything to clear it`,
+                type: "string",
+                role: "json",
+                read: true,
+                write: true,
             },
             native: {},
         });
@@ -256,6 +335,15 @@ class Statechart extends utils.Adapter {
      */
     private onStateChange(id: string, state: ioBroker.State | null | undefined): void {
         if (!state) {
+            return;
+        }
+        const historyOf = this.getHistoryChartId(id);
+        if (historyOf) {
+            // written by the editor ("clear"), the adapter's own updates are acknowledged
+            if (!state.ack) {
+                this.histories.set(historyOf, []);
+                void this.setState(`charts.${historyOf}.history`, "[]", true);
+            }
             return;
         }
         for (const runtime of this.runtimes.values()) {

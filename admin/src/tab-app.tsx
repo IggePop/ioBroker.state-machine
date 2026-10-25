@@ -34,6 +34,7 @@ import ResizablePanel from "./components/ResizablePanel";
 import { downloadJson } from "./download";
 import { createChart, createExport, nameToId, parseExport } from "../../src/lib/chart-model";
 import type { Chart } from "../../src/lib/chart-model";
+import type { HistoryEntry } from "../../src/lib/chart-runtime";
 import en from "./i18n/en.json";
 import de from "./i18n/de.json";
 import ru from "./i18n/ru.json";
@@ -50,6 +51,10 @@ interface TabAppState extends GenericAppState {
     charts: Record<string, ioBroker.Object>;
     selectedChart: string | null;
     activeIds: string[];
+    /** current values of the variables of the selected chart, empty if it does not run */
+    liveValues: Record<string, any>;
+    /** events of the selected chart, null until they are loaded */
+    history: HistoryEntry[] | null;
     newChartName: string | null;
     deleteChart: string | null;
     /** if the editor has unsaved changes */
@@ -64,8 +69,8 @@ class TabApp extends GenericApp<GenericAppProps, TabAppState> {
     private readonly saveRef: { current: (() => Promise<void>) | null } = { current: null };
     /** hidden file input for importing charts */
     private readonly importInput = React.createRef<HTMLInputElement>();
-    /** state with the active state IDs of the selected chart */
-    private activeIdsStateId: string | null = null;
+    /** object ID of the chart whose live states (active states, values, history) are subscribed */
+    private liveChart: string | null = null;
 
     public constructor(props: GenericAppProps) {
         const extendedProps = {
@@ -81,6 +86,8 @@ class TabApp extends GenericApp<GenericAppProps, TabAppState> {
             charts: {},
             selectedChart: null,
             activeIds: [],
+            liveValues: {},
+            history: null,
             newChartName: null,
             deleteChart: null,
             changed: false,
@@ -103,9 +110,7 @@ class TabApp extends GenericApp<GenericAppProps, TabAppState> {
 
     public override componentWillUnmount(): void {
         void this.socket.unsubscribeObject(`${this.chartPrefix}*`, this.onObjectChange);
-        if (this.activeIdsStateId) {
-            this.socket.unsubscribeState(this.activeIdsStateId, this.onActiveIdsChange);
-        }
+        this.unsubscribeLive();
         super.componentWillUnmount();
     }
 
@@ -123,15 +128,58 @@ class TabApp extends GenericApp<GenericAppProps, TabAppState> {
         this.setState({ charts });
     };
 
-    private onActiveIdsChange = (_id: string, state: ioBroker.State | null | undefined): void => {
-        let activeIds = [];
+    /** the states of a running chart which the editor shows, see subscribeLive() */
+    private static readonly LIVE_STATES = ["activeStateIds", "values", "history"];
+
+    private onLiveStateChange = (id: string, state: ioBroker.State | null | undefined): void => {
+        if (!this.liveChart || !id.startsWith(`${this.liveChart}.`)) {
+            return;
+        }
+        let value;
         try {
-            activeIds = JSON.parse(String(state?.val || "[]"));
+            value = JSON.parse(String(state?.val || "null"));
         } catch {
             // ignore invalid values
         }
-        this.setState({ activeIds });
+        const name = id.substring(this.liveChart.length + 1);
+        if (name === "activeStateIds") {
+            this.setState({ activeIds: Array.isArray(value) ? value : [] });
+        } else if (name === "values") {
+            this.setState({ liveValues: value && typeof value === "object" ? value : {} });
+        } else if (name === "history") {
+            this.setState({ history: Array.isArray(value) ? value : [] });
+        }
     };
+
+    /**
+     * Subscribes to the active states, values and history of a chart
+     *
+     * @param id Object ID of the chart
+     */
+    private subscribeLive(id: string): void {
+        this.liveChart = id;
+        for (const name of TabApp.LIVE_STATES) {
+            void this.socket.subscribeState(`${id}.${name}`, false, this.onLiveStateChange);
+        }
+    }
+
+    private unsubscribeLive(): void {
+        if (this.liveChart) {
+            for (const name of TabApp.LIVE_STATES) {
+                this.socket.unsubscribeState(`${this.liveChart}.${name}`, this.onLiveStateChange);
+            }
+            this.liveChart = null;
+        }
+    }
+
+    /**
+     * The adapter clears the history when it is written without ack
+     *
+     * @param id Object ID of the chart
+     */
+    private clearHistory(id: string): void {
+        this.socket.setState(`${id}.history`, { val: "[]", ack: false }).catch(err => this.showError(String(err)));
+    }
 
     /**
      * Shows another chart, but asks first if the editor has unsaved changes
@@ -152,14 +200,10 @@ class TabApp extends GenericApp<GenericAppProps, TabAppState> {
      * @param id Object ID of the chart
      */
     private showChart(id: string | null): void {
-        if (this.activeIdsStateId) {
-            this.socket.unsubscribeState(this.activeIdsStateId, this.onActiveIdsChange);
-            this.activeIdsStateId = null;
-        }
-        this.setState({ selectedChart: id, activeIds: [], changed: false });
+        this.unsubscribeLive();
+        this.setState({ selectedChart: id, activeIds: [], liveValues: {}, history: null, changed: false });
         if (id) {
-            this.activeIdsStateId = `${id}.activeStateIds`;
-            void this.socket.subscribeState(this.activeIdsStateId, false, this.onActiveIdsChange);
+            this.subscribeLive(id);
         }
     }
 
@@ -535,6 +579,9 @@ class TabApp extends GenericApp<GenericAppProps, TabAppState> {
                             chartId={selected.substring(this.chartPrefix.length)}
                             chart={chart}
                             activeIds={this.state.activeIds}
+                            liveValues={this.state.liveValues}
+                            chartHistory={this.state.history}
+                            onClearHistory={() => this.clearHistory(selected)}
                             onSave={newChart => this.saveChart(selected, newChart)}
                             onChangedChange={this.onChangedChange}
                             saveRef={this.saveRef}

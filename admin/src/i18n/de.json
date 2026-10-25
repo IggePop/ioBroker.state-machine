@@ -96,5 +96,19 @@
     "confirmed values only": "nur bestätigte Werte (ack=true)",
     "commands only": "nur Befehle (ack=false)",
     "Debounce (ms)": "Entprellen (ms)",
-    "triggerHelp": "Wann dieser Eingang das Chart aufweckt. Aktualisierungen, die wegen ack aussortiert werden, ändern die Variable nicht. Mit Entprellen wird das Chart erst geweckt, wenn der Eingang so lange keine Aktualisierung bekommen hat, mit dem letzten Wert."
+    "triggerHelp": "Wann dieser Eingang das Chart aufweckt. Aktualisierungen, die wegen ack aussortiert werden, ändern die Variable nicht. Mit Entprellen wird das Chart erst geweckt, wenn der Eingang so lange keine Aktualisierung bekommen hat, mit dem letzten Wert.",
+    "Live values": "Live-Werte",
+    "The chart does not run": "Das Chart läuft nicht",
+    "Show live values": "Live-Werte der Variablen anzeigen",
+    "Hide live values": "Live-Werte der Variablen ausblenden",
+    "currentValue": "Aktueller Wert: %s",
+    "History": "Verlauf",
+    "Clear history": "Verlauf leeren",
+    "historyHelp": "Starts des Charts und genommene Übergänge, der neueste zuerst. Klicke auf einen Übergang, um ihn auszuwählen. Der Adapter behält die letzten 200 Ereignisse, auch über einen Neustart hinweg.",
+    "noHistory": "Noch nichts passiert. Der Verlauf füllt sich, während das Chart läuft.",
+    "Chart started": "Chart gestartet",
+    "Chart restored": "Chart nach einem Neustart fortgesetzt",
+    "triggeredBy": "durch Eingang %s",
+    "triggeredByTimer": "durch einen Timer (after)",
+    "activeAfter": "danach aktiv: %s"
 }
