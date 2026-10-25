@@ -54,7 +54,7 @@ The adapter is not in the ioBroker repositories yet, but can be installed direct
 Then add an instance of **State Machine**. This installs the current development version, which may
 still change incompatibly.
 
-Requirements: Node.js 20 or newer, js-controller 6.0.11 or newer, admin 7.0.23 or newer.
+Requirements: Node.js 22 or newer, js-controller 6.0.11 or newer, admin 7.6.17 or newer.
 
 ### Getting started
 
@@ -281,7 +281,7 @@ Der Adapter ist noch nicht in den ioBroker-Repositories, lässt sich aber direkt
 Danach eine Instanz von **Zustandsmaschine** hinzufügen. Installiert wird der aktuelle
 Entwicklungsstand, der sich noch inkompatibel ändern kann.
 
-Voraussetzungen: Node.js 20 oder neuer, js-controller 6.0.11 oder neuer, Admin 7.0.23 oder neuer.
+Voraussetzungen: Node.js 22 oder neuer, js-controller 6.0.11 oder neuer, Admin 7.6.17 oder neuer.
 
 ### Erste Schritte
 
@@ -524,7 +524,15 @@ with, endorsed or sponsored by The MathWorks, Inc.
 -->
 
 ### **WORK IN PROGRESS**
-* (Igge) initial release: graphical chart editor, execution with XState, timers, function blocks, code checks
+* (Igge) initial release
+* (Igge) graphical chart editor in the admin side bar: states, transitions, nested states, function blocks, notes
+* (Igge) transition labels in Stateflow syntax event[condition]{action}, timers with after(n, unit)
+* (Igge) execution with Stateflow semantics (outer before inner transitions, inner transitions)
+* (Igge) charts continue in their state after a restart of the adapter
+* (Igge) per input: wake up on updates or changes, filter by ack, debounce
+* (Igge) helper functions: setState, setStateDelayed, sendTo, isTimeBetween, isDaytime, astroTime
+* (Igge) code editor with syntax highlighting, error checks and completion, generated code view
+* (Igge) undo/redo, copy/paste, import/export of charts as JSON
 
 ## License
 MIT License
