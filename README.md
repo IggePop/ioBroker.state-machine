@@ -522,8 +522,7 @@ with, endorsed or sponsored by The MathWorks, Inc.
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
-
-### **WORK IN PROGRESS**
+### 0.1.0 (2026-10-25)
 * (Igge) initial release
 * (Igge) graphical chart editor in the admin side bar: states, transitions, nested states, function blocks, notes
 * (Igge) transition labels in Stateflow syntax event[condition]{action}, timers with after(n, unit)
