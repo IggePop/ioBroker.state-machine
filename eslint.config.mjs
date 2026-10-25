@@ -1,6 +1,6 @@
 // ioBroker eslint template configuration file for js and ts files
 // Please note that esm or react based modules need additional modules loaded.
-import config from '@iobroker/eslint-config';
+import config, { reactConfig } from '@iobroker/eslint-config';
 
 export default [
     ...config,
@@ -9,7 +9,7 @@ export default [
         ignores: [
             '.dev-server/',
             '.vscode/',
-            '**/*.test.js',
+            '**/*.test.ts',
             'test/**/*.js',
             '*.config.mjs',
             'build',
@@ -22,9 +22,10 @@ export default [
             'admin/build'
         ],
     },
+    // the admin UI is a React app, which runs in the browser
+    ...reactConfig.map(c => ({ ...c, files: ['admin/src/**/*.{ts,tsx}'] })),
     {
-        // the admin UI runs in the browser
-        files: ['admin/src/**/*.js'],
+        files: ['admin/src/**/*.{ts,tsx}'],
         languageOptions: {
             globals: {
                 document: 'readonly',
