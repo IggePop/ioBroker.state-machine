@@ -1,0 +1,4 @@
+{
+    "typescriptCompileTarget": "node22",
+    "typescriptFormat": "cjs"
+}

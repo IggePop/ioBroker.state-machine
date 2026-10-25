@@ -10,8 +10,10 @@ nbproject
 # npm package files
 iobroker.*.tgz
 
-# The built admin tab is committed, so the adapter can be installed from GitHub.
-# Its source maps are only needed for debugging and are too large for the repository.
+# The built adapter and admin tab are committed, so the adapter can be installed from GitHub.
+# Their source maps are only needed for debugging. They contain the sources with their line endings,
+# so they differ between Windows and Linux builds, and the admin ones are too large for the repository.
+build/**/*.map
 admin/build/*.map
 
 Thumbs.db

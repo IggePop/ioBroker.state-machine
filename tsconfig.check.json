@@ -1,8 +1,0 @@
-// Specialized tsconfig for type-checking js files
-{
-    "extends": "./tsconfig.json",
-    "compilerOptions": {},
-    "include": ["**/*.js", "**/*.d.ts"],
-    // the admin UI runs in the browser, it is checked with admin/tsconfig.json (with DOM types)
-    "exclude": ["**/build", "node_modules/", "widgets/", "admin/"]
-}

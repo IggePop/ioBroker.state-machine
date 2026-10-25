@@ -480,35 +480,42 @@ Funktionsblöcken deklariert sind, werden nicht wiederhergestellt.
 
 ```bash
 npm install
-npm run build                # build the admin tab
+npm run build                # build the adapter (src/ to build/) and the admin tab
 npm run dev-server setup     # once: local ioBroker test instance in .dev-server/
-npm run dev-server watch     # run it, admin on http://127.0.0.1:8081/
+npm run dev-server watch     # run it, admin on http://127.0.0.1:8081/, rebuilds the adapter on changes
 npm run upload:tab           # in a second terminal: upload the tab into the test instance
 ```
+
+The adapter and the editor are written in TypeScript. The editor imports the chart model, the validation
+and the code generator directly from `src/lib/`, so they are shared by both.
 
 | Script | Description |
 |---|---|
 | `dev-server` | Runs [`dev-server`](https://github.com/ioBroker/dev-server) with the given command. Before, it applies the patches in `patches/`: the dev-server uses `wmic.exe` to find the adapter process, which no longer exists in Windows 11 25H2 |
-| `build` / `watch` | Build the React sources of the tab (`admin/src`) to `admin/build` |
+| `build` / `watch` | Build the adapter (`src` to `build`) and the tab (`admin/src` to `admin/build`), with type check |
+| `build:ts` / `watch:ts` | Build only the adapter |
+| `build:react` / `watch:react` | Build only the tab |
 | `upload:tab` | Build the tab and write the admin files into the running dev-server instance (works while `dev-server watch` runs) |
-| `test` | Unit tests (`lib/**/*.test.js`) and package tests |
-| `check` | Type check of the adapter (`npx tsc -p admin/tsconfig.json --noEmit` for the tab) |
+| `test` | Unit tests (`src/**/*.test.ts`) and package tests |
+| `check` | Type check of the adapter and the tab |
 | `lint` | ESLint |
 | `translate` | Translate the texts of the adapter |
 | `release` | Create a new release |
 
 After changes of `io-package.json`, run `npm run dev-server upload` and restart `npm run dev-server watch`.
 
-**The built tab (`admin/build`) is committed**, because installations from GitHub do not run a build.
-After changes in `admin/src`, run `npm run build` and commit `admin/build` as well. The workflow job
-`check-admin-build` fails if it is outdated. The source maps (`admin/build/*.map`) are not committed.
+**The built adapter (`build`) and tab (`admin/build`) are committed**, because installations from GitHub do
+not run a build. After changes in `src` or `admin/src`, run `npm run build` and commit `build` and
+`admin/build` as well. The workflow job `check-build` fails if they are outdated. The source maps are not
+committed.
 
 | Path | Content |
 |---|---|
-| `main.js` | Adapter: loads the charts, subscribes the inputs, restarts a chart when it is saved |
-| `lib/chart-model.js` | Chart model (shared by adapter and editor) and parser of the transition labels |
-| `lib/chart-runtime.js` | Execution of a chart with XState |
-| `lib/chart-validation.js` | Checks of conditions, actions and function blocks |
+| `src/main.ts` | Adapter: loads the charts, subscribes the inputs, restarts a chart when it is saved |
+| `src/lib/chart-model.ts` | Chart model (shared by adapter and editor) and parser of the transition labels |
+| `src/lib/chart-runtime.ts` | Execution of a chart with XState |
+| `src/lib/chart-validation.ts` | Checks of conditions, actions and function blocks |
+| `src/lib/chart-codegen.ts` | Code shown by "Show code" in the editor |
 | `admin/src/` | Editor (React, React Flow, CodeMirror) |
 | `admin/jsonConfig.json` | Instance settings |
 
@@ -522,6 +529,9 @@ with, endorsed or sponsored by The MathWorks, Inc.
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (Igge) the adapter and the editor are written in TypeScript now, no changes of the behavior
+
 ### 0.1.1 (2026-10-25)
 * (Igge) renamed from "state-machine" to "statechart", because npm does not accept the old name (too similar to an existing package)
 

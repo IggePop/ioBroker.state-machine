@@ -1,0 +1,12 @@
+// Specialized tsconfig for the build of the adapter (src/ to build/), used by "build-adapter ts"
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "allowJs": false,
+        "checkJs": false,
+        "noEmit": false,
+        "declaration": false
+    },
+    "include": ["src/**/*.ts"],
+    "exclude": ["src/**/*.test.ts"]
+}

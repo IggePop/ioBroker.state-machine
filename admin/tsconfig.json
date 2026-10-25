@@ -7,12 +7,13 @@
         "outDir": "./build",
         "sourceMap": true,
         "sourceRoot": "./src",
-        "noImplicitAny": false,
-        "lib": ["es2018", "DOM"],
+        "allowJs": false,
+        "checkJs": false,
+        "lib": ["es2023", "DOM", "DOM.Iterable"],
         // only load the ioBroker and Node.js globals, so ioBroker.State etc. resolve correctly
         "types": ["iobroker", "node"],
         "jsx": "react"
     },
-    "include": ["./**/*.d.ts", "./**/*.jsx", "../lib/adapter-config.d.ts"],
-    "exclude": ["./**/*.test.jsx"]
+    "include": ["./src/**/*.ts", "./src/**/*.tsx", "../src/lib/adapter-config.d.ts"],
+    "exclude": ["./**/*.test.ts", "./**/*.test.tsx"]
 }

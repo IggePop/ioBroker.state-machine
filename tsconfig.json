@@ -5,29 +5,22 @@
     "extends": "@tsconfig/node22/tsconfig.json",
     "compilerOptions": {
         // do not compile anything, this file is just to configure type checking
+        // the compilation is configured in tsconfig.build.json
         "noEmit": true,
 
-        // check JS files
+        // check the remaining JS files (tests and tools) as well
         "allowJs": true,
         "checkJs": true,
 
         // This is necessary for the automatic typing of the adapter config
         "resolveJsonModule": true,
 
-        // the mocha globals (describe, it, ...) are needed for the *.test.js files
+        // the mocha globals (describe, it, ...) are needed for the *.test.ts files
         "types": ["node", "mocha"],
 
-        // If you want to disable the stricter type checks (not recommended), uncomment the following line
-        // "strict": false,
-        // And enable some of those features for more fine-grained control
-        // "strictNullChecks": true,
-        // "strictPropertyInitialization": true,
-        // "strictBindCallApply": true,
-        "noImplicitAny": false,
-        // "noUnusedLocals": true,
-        // "noUnusedParameters": true,
+        "noImplicitOverride": true,
         "useUnknownInCatchVariables": false
     },
-    "include": ["**/*.js", "**/*.d.ts"],
-    "exclude": ["node_modules/**", "widgets/**"]
+    "include": ["src/**/*.ts", "test/**/*.js", "tools/**/*.js"],
+    "exclude": ["build/**", "node_modules/**", "admin/**"]
 }

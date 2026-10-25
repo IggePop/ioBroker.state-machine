@@ -33,9 +33,9 @@ jobs:
           # install-command: 'npm install'
           lint: true
 
-  # The built admin tab (admin/build) is committed, so the adapter can be installed directly from GitHub.
-  # This job fails if it was not rebuilt and committed after changes of admin/src.
-  check-admin-build:
+  # The built adapter (build) and admin tab (admin/build) are committed, so the adapter can be installed
+  # directly from GitHub. This job fails if they were not rebuilt and committed after changes of src or admin/src.
+  check-build:
     if: contains(github.event.head_commit.message, '[skip ci]') == false
 
     runs-on: ubuntu-latest
@@ -48,11 +48,11 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm run build
-      - name: Check that the committed admin/build is up to date
+      - name: Check that the committed build and admin/build are up to date
         run: |
-          if ! git diff --quiet -- admin/build || [ -n "$(git ls-files --others --exclude-standard -- admin/build)" ]; then
-            git status --short -- admin/build
-            echo "::error::admin/build is outdated. Run 'npm run build' and commit admin/build."
+          if ! git diff --quiet -- build admin/build || [ -n "$(git ls-files --others --exclude-standard -- build admin/build)" ]; then
+            git status --short -- build admin/build
+            echo "::error::build or admin/build is outdated. Run 'npm run build' and commit both."
             exit 1
           fi
 

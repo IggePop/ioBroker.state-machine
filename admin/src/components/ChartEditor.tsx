@@ -1,0 +1,796 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+    applyEdgeChanges,
+    applyNodeChanges,
+    Background,
+    ConnectionMode,
+    Controls,
+    MarkerType,
+    MiniMap,
+    ReactFlow,
+    ReactFlowProvider,
+    useReactFlow,
+} from "@xyflow/react";
+import type { OnConnect, OnEdgesChange, OnNodeDrag, OnNodesChange } from "@xyflow/react";
+import { Box, Divider, IconButton, Tab, Tabs, Toolbar, Tooltip } from "@mui/material";
+import {
+    Add as AddIcon,
+    Code as CodeIcon,
+    ContentCopy as CopyIcon,
+    ContentPaste as PasteIcon,
+    FileDownload as ExportIcon,
+    Functions as FunctionIcon,
+    StickyNote2Outlined as NoteIcon,
+    Redo as RedoIcon,
+    Save as SaveIcon,
+    Undo as UndoIcon,
+} from "@mui/icons-material";
+import { I18n } from "@iobroker/adapter-react-v5";
+import type { AdminConnection, IobTheme } from "@iobroker/adapter-react-v5";
+import { useEditHistory } from "../edit-history";
+
+import StateNode from "./StateNode";
+import FunctionNode from "./FunctionNode";
+import NoteNode from "./NoteNode";
+import TransitionEdge from "./TransitionEdge";
+import PropertiesPanel from "./PropertiesPanel";
+import ResizablePanel from "./ResizablePanel";
+import SymbolsEditor from "./SymbolsEditor";
+import GeneratedCodeDialog from "./GeneratedCodeDialog";
+import { generateChartCode } from "../../../src/lib/chart-codegen";
+import { createExport } from "../../../src/lib/chart-model";
+import type { Chart, ChartFunction, ChartNote, ChartState, ChartTransition } from "../../../src/lib/chart-model";
+import { downloadJson } from "../download";
+import { translateDiagnostic } from "./CodeEditor";
+import {
+    chartToFlow,
+    copySelection,
+    createId,
+    DEFAULT_FUNCTION_HEIGHT,
+    DEFAULT_FUNCTION_WIDTH,
+    DEFAULT_NOTE_HEIGHT,
+    DEFAULT_NOTE_WIDTH,
+    DEFAULT_STATE_HEIGHT,
+    DEFAULT_STATE_WIDTH,
+    findDropParent,
+    flowToChart,
+    getInitialStateIds,
+    isDescendantNode,
+    pasteClipboard,
+    reparentNodes,
+} from "../flow-model";
+import type { ChartFlowNode, ClipboardContent, Rect, TransitionFlowEdge } from "../flow-model";
+import { getDeclarations, validateChart } from "../../../src/lib/chart-validation";
+
+// defined outside the component, so React Flow does not re-create them on every render
+const nodeTypes = { state: StateNode, function: FunctionNode, note: NoteNode };
+const edgeTypes = { transition: TransitionEdge };
+const markerEnd = { type: MarkerType.ArrowClosed, width: 18, height: 18 };
+
+/**
+ * Copied elements, outside the component so they can be pasted into another chart as well
+ */
+let clipboard: ClipboardContent | null = null;
+
+/** Distance of pasted elements from the copied ones */
+const PASTE_OFFSET = 30;
+
+/**
+ * A button of the toolbar: only an icon, the title is shown as tooltip
+ *
+ * @param props Component properties
+ * @param props.title Shown as tooltip
+ * @param props.icon The icon of the button
+ * @param props.onClick Called when the button is clicked
+ * @param props.disabled If the button is disabled
+ * @param props.color Color of the icon
+ */
+function ToolButton({
+    title,
+    icon,
+    onClick,
+    disabled,
+    color = "default",
+}: {
+    title: string;
+    icon: React.ReactNode;
+    onClick: () => void;
+    disabled?: boolean;
+    color?: "default" | "primary";
+}): React.JSX.Element {
+    return (
+        <Tooltip title={title}>
+            {/* disabled buttons get no mouse events, the span shows the tooltip anyway */}
+            <span>
+                <IconButton
+                    size="small"
+                    color={color}
+                    disabled={disabled}
+                    onClick={onClick}
+                    aria-label={title}
+                >
+                    {icon}
+                </IconButton>
+            </span>
+        </Tooltip>
+    );
+}
+
+/**
+ * @param target Target of a keyboard event
+ * @returns true for text fields and code editors, which handle the keyboard shortcuts themselves
+ */
+function isTextInput(target: EventTarget | null): boolean {
+    if (!(target instanceof Element)) {
+        return false;
+    }
+    return (
+        ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
+        (target instanceof HTMLElement && target.isContentEditable) ||
+        !!target.closest(".cm-editor")
+    );
+}
+
+interface ChartEditorProps {
+    /** ID of the chart (last part of the object ID) */
+    chartId: string;
+    /** The saved chart */
+    chart: Chart;
+    /** IDs of the currently active states */
+    activeIds: string[];
+    onSave: (chart: Chart) => Promise<void>;
+    /** Called when the editor gets or loses unsaved changes */
+    onChangedChange?: (changed: boolean) => void;
+    /** Set to a function which saves the chart */
+    saveRef?: { current: (() => Promise<void>) | null };
+    socket: AdminConnection;
+    theme: IobTheme;
+}
+
+type Shortcut = "undo" | "redo" | "copy" | "cut" | "paste";
+
+function ChartEditorInner({
+    chartId,
+    chart: savedChart,
+    activeIds,
+    onSave,
+    onChangedChange,
+    saveRef,
+    socket,
+    theme,
+}: ChartEditorProps): React.JSX.Element {
+    const reactFlow = useReactFlow<ChartFlowNode, TransitionFlowEdge>();
+    /** chart level properties (name, symbols, initial state, ...), states and transitions live in nodes/edges */
+    const [chart, setChart] = useState(savedChart);
+    const [nodes, setNodes] = useState(() => chartToFlow(savedChart).nodes);
+    const [edges, setEdges] = useState(() => chartToFlow(savedChart).edges);
+    const history = useEditHistory({ chart, nodes, edges }, document => {
+        // selected elements of the past would show their (old) properties, so the selection is cleared
+        setChart(document.chart);
+        setNodes(document.nodes.map(n => ({ ...n, selected: false })));
+        setEdges(document.edges.map(e => ({ ...e, selected: false })));
+    });
+    const { record, changed } = history;
+    /** how often the clipboard was pasted, each time a bit further away */
+    const pasteCount = useRef(0);
+    /** the clipboard is no state, this re-renders the editor (to enable the paste button) when it is filled */
+    const [hasClipboard, setHasClipboard] = useState(!!clipboard);
+    const [saving, setSaving] = useState(false);
+    const [panelTab, setPanelTab] = useState("properties");
+    /** the code generated from the current (maybe unsaved) chart, null if the dialog is closed */
+    const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+    /** state into which the dragged state would be moved when it is dropped */
+    const [dropTarget, setDropTarget] = useState<string | null>(null);
+
+    /**
+     * Absolute position and size of a node, as currently shown by React Flow
+     */
+    const getRect = useCallback(
+        (id: string): Rect | null => {
+            const node = reactFlow.getInternalNode(id);
+            if (!node) {
+                return null;
+            }
+            return {
+                ...node.internals.positionAbsolute,
+                width: node.measured.width ?? node.width ?? 0,
+                height: node.measured.height ?? node.height ?? 0,
+            };
+        },
+        [reactFlow],
+    );
+
+    const onNodeDrag = useCallback<OnNodeDrag<ChartFlowNode>>(
+        (_event, node, dragged) => {
+            const target =
+                dragged.length === 1 && (node.type === "state" || node.type === "note")
+                    ? findDropParent(nodes, node.id, getRect)
+                    : null;
+            // only show a target if the state/note would really be moved into another parent
+            setDropTarget(target !== (node.parentId || null) ? target : null);
+        },
+        [nodes, getRect],
+    );
+
+    const onNodeDragStop = useCallback<OnNodeDrag<ChartFlowNode>>(
+        (_event, _node, dragged) => {
+            setDropTarget(null);
+            setNodes(nds =>
+                reparentNodes(
+                    nds,
+                    dragged.map(n => n.id),
+                    getRect,
+                ),
+            );
+        },
+        [getRect],
+    );
+
+    const onNodesChange = useCallback<OnNodesChange<ChartFlowNode>>(
+        changes => {
+            // selection and measuring are no modifications of the chart
+            if (changes.some(c => c.type === "remove")) {
+                // removing states also removes their transitions: one step
+                record("remove");
+            } else if (changes.some(c => c.type === "dimensions" && c.resizing)) {
+                record("resize");
+            } else if (changes.some(c => c.type === "position" && c.position)) {
+                // dragged or moved with the arrow keys, all position changes of a drag are one step
+                // (including moving the state into another state when it is dropped)
+                record("move");
+            }
+            setNodes(nds => applyNodeChanges(changes, nds));
+        },
+        [record],
+    );
+
+    const onEdgesChange = useCallback<OnEdgesChange<TransitionFlowEdge>>(
+        changes => {
+            if (changes.some(c => c.type === "remove")) {
+                record("remove");
+            }
+            setEdges(eds => applyEdgeChanges(changes, eds));
+        },
+        [record],
+    );
+
+    const onConnect = useCallback<OnConnect>(
+        connection => {
+            record();
+            setEdges(eds => {
+                const id = createId("t", eds);
+                const outgoing = eds.filter(e => e.source === connection.source).length;
+                return [
+                    ...eds.map(e => ({ ...e, selected: false })),
+                    {
+                        id,
+                        type: "transition",
+                        source: connection.source,
+                        target: connection.target,
+                        sourceHandle: connection.sourceHandle,
+                        targetHandle: connection.targetHandle,
+                        selected: true,
+                        data: {
+                            transition: {
+                                id,
+                                source: connection.source,
+                                target: connection.target,
+                                label: "",
+                                priority: outgoing + 1,
+                            },
+                        },
+                    },
+                ];
+            });
+            setNodes(nds => nds.map(n => ({ ...n, selected: false })));
+        },
+        [record],
+    );
+
+    // a double click selects the state/transition (first click) and shows its properties
+    const showProperties = useCallback(() => setPanelTab("properties"), []);
+
+    /**
+     * Adds a node in the middle of the visible area and selects it
+     *
+     * @param create Creates the node at the given position
+     * @param idPrefix Prefix of the ID of the new node
+     * @returns ID of the new node
+     */
+    const addNode = (create: (id: string, x: number, y: number) => ChartFlowNode, idPrefix: string): string => {
+        record();
+        const id = createId(idPrefix, nodes);
+        const { x, y } = reactFlow.screenToFlowPosition({ x: window.innerWidth / 3, y: window.innerHeight / 3 });
+        setNodes(nds => [
+            ...nds.map(n => ({ ...n, selected: false })),
+            { ...create(id, Math.round(x), Math.round(y)), selected: true },
+        ]);
+        setEdges(eds => eds.map(e => ({ ...e, selected: false })));
+        setPanelTab("properties");
+        return id;
+    };
+
+    const addState = (): void => {
+        const states = nodes.filter(n => n.type === "state");
+        const id = addNode(
+            (id, x, y) => ({
+                id,
+                type: "state",
+                position: { x, y },
+                width: DEFAULT_STATE_WIDTH,
+                height: DEFAULT_STATE_HEIGHT,
+                data: { state: { id, name: `${I18n.t("State")} ${states.length + 1}`, x, y } },
+            }),
+            "s",
+        );
+        if (!states.some(n => n.id === chart.initial)) {
+            setChart(c => ({ ...c, initial: id }));
+        }
+    };
+
+    const addNote = (): void => {
+        addNode(
+            (id, x, y) => ({
+                id,
+                type: "note",
+                position: { x, y },
+                width: DEFAULT_NOTE_WIDTH,
+                height: DEFAULT_NOTE_HEIGHT,
+                data: { note: { id, text: "", x, y } },
+            }),
+            "n",
+        );
+    };
+
+    const addFunction = (): void => {
+        addNode(
+            (id, x, y) => ({
+                id,
+                type: "function",
+                position: { x, y },
+                width: DEFAULT_FUNCTION_WIDTH,
+                height: DEFAULT_FUNCTION_HEIGHT,
+                data: { fn: { id, code: "function myFunction(value) {\n    return value;\n}", x, y } },
+            }),
+            "f",
+        );
+    };
+
+    const updateChart = (patch: Partial<Chart>): void => {
+        // typing in the same field is one step
+        record(`chart:${Object.keys(patch).join()}`);
+        setChart(c => ({ ...c, ...patch }));
+    };
+
+    const updateState = (id: string, patch: Partial<ChartState>): void => {
+        record(`state:${id}:${Object.keys(patch).join()}`);
+        setNodes(nds =>
+            nds.map(n =>
+                n.id === id && n.type === "state" ? { ...n, data: { state: { ...n.data.state, ...patch } } } : n,
+            ),
+        );
+    };
+
+    const updateNote = (id: string, patch: Partial<ChartNote>): void => {
+        record(`note:${id}:${Object.keys(patch).join()}`);
+        setNodes(nds =>
+            nds.map(n =>
+                n.id === id && n.type === "note" ? { ...n, data: { note: { ...n.data.note, ...patch } } } : n,
+            ),
+        );
+    };
+
+    const updateFunction = (id: string, patch: Partial<ChartFunction>): void => {
+        record(`function:${id}:${Object.keys(patch).join()}`);
+        setNodes(nds =>
+            nds.map(n =>
+                n.id === id && n.type === "function" ? { ...n, data: { fn: { ...n.data.fn, ...patch } } } : n,
+            ),
+        );
+    };
+
+    const updateTransition = (id: string, patch: Partial<ChartTransition>): void => {
+        record(`transition:${id}:${Object.keys(patch).join()}`);
+        setEdges(eds =>
+            eds.map(e =>
+                e.id === id
+                    ? {
+                          ...e,
+                          data: {
+                              ...e.data,
+                              transition: { ...e.data?.transition, ...patch, id, source: e.source, target: e.target },
+                          },
+                      }
+                    : e,
+            ),
+        );
+    };
+
+    /**
+     * @returns the chart as shown in the editor, including unsaved changes
+     */
+    const getCurrentChart = (): Chart => {
+        const current = flowToChart(chart, nodes, edges);
+        const topLevel = current.states.filter(s => !s.parent);
+        if (!topLevel.some(s => s.id === current.initial)) {
+            current.initial = topLevel[0]?.id;
+        }
+        return current;
+    };
+
+    const exportChart = (): void => downloadJson(`${chartId}.statechart.json`, createExport([getCurrentChart()]));
+
+    const save = async (): Promise<void> => {
+        const newChart = getCurrentChart();
+        const version = history.version;
+        setSaving(true);
+        try {
+            await onSave(newChart);
+            setChart(c => ({ ...c, initial: newChart.initial }));
+            history.markSaved(version);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const copy = (): boolean => {
+        const content = copySelection(nodes, edges, getRect);
+        if (content) {
+            clipboard = content;
+            pasteCount.current = 0;
+            setHasClipboard(true);
+        }
+        return !!content;
+    };
+
+    const cut = (): void => {
+        if (copy()) {
+            void reactFlow.deleteElements({
+                nodes: nodes.filter(n => n.selected).map(n => ({ id: n.id })),
+                edges: edges.filter(e => e.selected).map(e => ({ id: e.id })),
+            });
+        }
+    };
+
+    const paste = (): void => {
+        if (!clipboard) {
+            return;
+        }
+        record();
+        pasteCount.current++;
+        const result = pasteClipboard(clipboard, nodes, edges, PASTE_OFFSET * pasteCount.current);
+        setNodes(result.nodes);
+        setEdges(result.edges);
+        setPanelTab("properties");
+    };
+
+    // the keyboard shortcuts call the functions of the current render
+    const shortcuts = useRef<Record<Shortcut, () => void>>({
+        undo: history.undo,
+        redo: history.redo,
+        copy,
+        cut,
+        paste,
+    });
+    // eslint-disable-next-line react-hooks/refs
+    shortcuts.current = { undo: history.undo, redo: history.redo, copy, cut, paste };
+
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent): void => {
+            // text fields and code editors have their own undo, copy and paste
+            if (!(e.ctrlKey || e.metaKey) || e.altKey || isTextInput(e.target)) {
+                return;
+            }
+            const key = e.key.toLowerCase();
+            const keys: Record<string, Shortcut> = { z: "undo", y: "redo", c: "copy", x: "cut", v: "paste" };
+            const action = key === "z" && e.shiftKey ? "redo" : !e.shiftKey && keys[key];
+            if (action) {
+                e.preventDefault();
+                shortcuts.current[action]();
+            }
+        };
+        window.addEventListener("keydown", onKeyDown);
+        return () => window.removeEventListener("keydown", onKeyDown);
+    }, []);
+
+    useEffect(() => {
+        if (!changed) {
+            return undefined;
+        }
+        // the browser asks before the page is closed or reloaded
+        const onBeforeUnload = (e: BeforeUnloadEvent): void => {
+            e.preventDefault();
+            e.returnValue = "";
+        };
+        window.addEventListener("beforeunload", onBeforeUnload);
+        return () => window.removeEventListener("beforeunload", onBeforeUnload);
+    }, [changed]);
+
+    useEffect(() => onChangedChange?.(changed), [changed, onChangedChange]);
+    useEffect(() => {
+        if (saveRef) {
+            saveRef.current = save;
+        }
+    });
+
+    const selectedNodes = nodes.filter(n => n.selected);
+    const selectedEdges = edges.filter(e => e.selected);
+    const selectedNode = selectedNodes.length === 1 && !selectedEdges.length ? selectedNodes[0] : null;
+    const selectedState = selectedNode?.type === "state" ? selectedNode.data.state : null;
+    const selectedFunction = selectedNode?.type === "function" ? selectedNode.data.fn : null;
+    const selectedNote = selectedNode?.type === "note" ? selectedNode.data.note : null;
+    const selectedTransition =
+        selectedEdges.length === 1 && !selectedNodes.length ? selectedEdges[0].data?.transition || null : null;
+
+    // add the information which is not stored in the nodes/edges themselves
+    // only the code and the variables matter for the validation, not e.g. the positions which change while dragging
+    const codeSignature = JSON.stringify([
+        chart.symbols,
+        nodes.map(n => {
+            if (n.type === "function") {
+                return [n.id, n.data.fn.code];
+            }
+            // notes have no code
+            return n.type === "state" ? [n.id, n.data.state.entry, n.data.state.during, n.data.state.exit] : null;
+        }),
+        edges.map(e => [e.id, e.data?.transition.label]),
+    ]);
+    const functionCodes = JSON.stringify(nodes.map(n => (n.type === "function" ? n.data.fn.code : null)));
+    const { functions, declarations } = useMemo(() => {
+        const fns = nodes.flatMap(n => (n.type === "function" ? [n.data.fn] : []));
+        return {
+            functions: fns,
+            /** names declared in the function blocks, they can be used in all conditions and actions */
+            declarations: fns.flatMap(fn => getDeclarations(fn.code)),
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [functionCodes]);
+
+    /** translated problem messages by state/transition/function ID */
+    const problems = useMemo(() => {
+        const byId = new Map<string, string[]>();
+        for (const problem of validateChart(flowToChart(chart, nodes, edges))) {
+            const prefix = problem.kind === "state" ? `${problem.field}: ` : "";
+            byId.set(problem.id, [...(byId.get(problem.id) || []), prefix + translateDiagnostic(problem.diagnostic)]);
+        }
+        return byId;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [codeSignature]);
+
+    /**
+     * Makes a state the initial state of its level: of its parent, or of the chart for top level states
+     *
+     * @param id ID of the state
+     */
+    const setInitial = (id: string): void => {
+        const parentId = nodes.find(n => n.id === id)?.parentId;
+        if (parentId) {
+            updateState(parentId, { initial: id });
+        } else {
+            updateChart({ initial: id });
+        }
+    };
+
+    const initialIds = useMemo(() => getInitialStateIds(nodes, chart.initial), [nodes, chart.initial]);
+
+    const displayNodes = useMemo(
+        () =>
+            nodes.map(n => ({
+                ...n,
+                // the extra fields are only read by the node components
+                data: {
+                    ...n.data,
+                    isInitial: initialIds.has(n.id),
+                    isActive: activeIds.includes(n.id),
+                    isDropTarget: n.id === dropTarget,
+                    problems: problems.get(n.id),
+                } as any,
+            })),
+        [nodes, initialIds, activeIds, dropTarget, problems],
+    );
+    const displayEdges = useMemo(() => {
+        const outgoing: Record<string, number> = {};
+        edges.forEach(e => (outgoing[e.source] = (outgoing[e.source] || 0) + 1));
+        return edges.map(
+            e =>
+                ({
+                    ...e,
+                    // like the nodes: no zooming on double click and no panning when dragging the edge
+                    className: "nopan",
+                    markerEnd,
+                    data: {
+                        ...e.data,
+                        showPriority: outgoing[e.source] > 1,
+                        // a transition to an own child which keeps the parent active
+                        inner: isDescendantNode(nodes, e.source, e.target) && !e.data?.transition.reenterParent,
+                        problems: problems.get(e.id),
+                    },
+                }) as TransitionFlowEdge,
+        );
+    }, [edges, nodes, problems]);
+
+    return (
+        <Box sx={{ display: "flex", height: "100%", minHeight: 0 }}>
+            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+                <Toolbar
+                    variant="dense"
+                    sx={{ gap: 0.5, borderBottom: 1, borderColor: "divider" }}
+                >
+                    <ToolButton
+                        title={`${I18n.t("Save")} (${changed ? I18n.t("unsaved changes") : I18n.t("no changes")})`}
+                        icon={<SaveIcon />}
+                        // highlighted when there is something to save
+                        color={changed ? "primary" : "default"}
+                        disabled={!changed || saving}
+                        onClick={save}
+                    />
+                    <ToolButton
+                        title={`${I18n.t("Copy")} (Ctrl+C)`}
+                        icon={<CopyIcon />}
+                        disabled={!nodes.some(n => n.selected)}
+                        onClick={copy}
+                    />
+                    <ToolButton
+                        title={`${I18n.t("Paste")} (Ctrl+V)`}
+                        icon={<PasteIcon />}
+                        disabled={!hasClipboard}
+                        onClick={paste}
+                    />
+                    <ToolButton
+                        title={`${I18n.t("Undo")} (Ctrl+Z)`}
+                        icon={<UndoIcon />}
+                        disabled={!history.canUndo}
+                        onClick={history.undo}
+                    />
+                    <ToolButton
+                        title={`${I18n.t("Redo")} (Ctrl+Y)`}
+                        icon={<RedoIcon />}
+                        disabled={!history.canRedo}
+                        onClick={history.redo}
+                    />
+                    <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{ mx: 0.5 }}
+                    />
+                    <ToolButton
+                        title={I18n.t("Show code")}
+                        icon={<CodeIcon />}
+                        onClick={() => setGeneratedCode(generateChartCode(flowToChart(chart, nodes, edges), chartId))}
+                    />
+                    <ToolButton
+                        title={I18n.t("Add state")}
+                        icon={<AddIcon />}
+                        onClick={addState}
+                    />
+                    <ToolButton
+                        title={I18n.t("Add function")}
+                        icon={<FunctionIcon />}
+                        onClick={addFunction}
+                    />
+                    <ToolButton
+                        title={I18n.t("Add note")}
+                        icon={<NoteIcon />}
+                        onClick={addNote}
+                    />
+                    <Divider
+                        orientation="vertical"
+                        flexItem
+                        sx={{ mx: 0.5 }}
+                    />
+                    <ToolButton
+                        title={`${I18n.t("Export chart")}${changed ? ` (${I18n.t("including unsaved changes")})` : ""}`}
+                        icon={<ExportIcon />}
+                        onClick={exportChart}
+                    />
+                </Toolbar>
+                <Box sx={{ flex: 1, minHeight: 0 }}>
+                    <ReactFlow
+                        nodes={displayNodes}
+                        edges={displayEdges}
+                        nodeTypes={nodeTypes}
+                        edgeTypes={edgeTypes}
+                        onNodesChange={onNodesChange}
+                        onEdgesChange={onEdgesChange}
+                        onConnect={onConnect}
+                        onNodeDoubleClick={showProperties}
+                        onEdgeDoubleClick={showProperties}
+                        onNodeDrag={onNodeDrag}
+                        onNodeDragStop={onNodeDragStop}
+                        // children above their parents, transitions of children above the parents as well
+                        zIndexMode="auto"
+                        connectionMode={ConnectionMode.Loose}
+                        colorMode={theme.palette.mode}
+                        snapToGrid
+                        snapGrid={[10, 10]}
+                        deleteKeyCode={["Delete", "Backspace"]}
+                        fitView
+                        fitViewOptions={{ maxZoom: 1 }}
+                    >
+                        <Background />
+                        <Controls />
+                        <MiniMap
+                            pannable
+                            zoomable
+                        />
+                    </ReactFlow>
+                </Box>
+            </Box>
+            <ResizablePanel
+                side="right"
+                storageKey="statechart.propertiesWidth"
+                defaultWidth={360}
+                minWidth={260}
+                maxWidth={900}
+            >
+                <Tabs
+                    value={panelTab}
+                    onChange={(_e, value: string) => setPanelTab(value)}
+                    variant="fullWidth"
+                >
+                    <Tab
+                        value="properties"
+                        label={I18n.t("Properties")}
+                    />
+                    <Tab
+                        value="symbols"
+                        label={I18n.t("Variables")}
+                    />
+                </Tabs>
+                <Box sx={{ p: 2, overflow: "auto", flex: 1 }}>
+                    {panelTab === "properties" ? (
+                        <PropertiesPanel
+                            chart={chart}
+                            selectedState={selectedState}
+                            selectedTransition={selectedTransition}
+                            selectedFunction={selectedFunction}
+                            selectedNote={selectedNote}
+                            onNoteChange={updateNote}
+                            isInitial={!!selectedState && initialIds.has(selectedState.id)}
+                            toChild={
+                                !!selectedTransition &&
+                                isDescendantNode(nodes, selectedTransition.source, selectedTransition.target)
+                            }
+                            onSetInitial={setInitial}
+                            functions={functions}
+                            declarations={declarations}
+                            onChartChange={updateChart}
+                            onStateChange={updateState}
+                            onTransitionChange={updateTransition}
+                            onFunctionChange={updateFunction}
+                            onDeleteNode={id => void reactFlow.deleteElements({ nodes: [{ id }] })}
+                            onDeleteTransition={id => void reactFlow.deleteElements({ edges: [{ id }] })}
+                        />
+                    ) : (
+                        <SymbolsEditor
+                            symbols={chart.symbols}
+                            onChange={symbols => updateChart({ symbols })}
+                            socket={socket}
+                            theme={theme}
+                        />
+                    )}
+                </Box>
+            </ResizablePanel>
+            {generatedCode !== null && (
+                <GeneratedCodeDialog
+                    code={generatedCode}
+                    unsaved={changed}
+                    onClose={() => setGeneratedCode(null)}
+                />
+            )}
+        </Box>
+    );
+}
+
+/**
+ * Graphical editor for one chart
+ *
+ * @param props Component properties
+ */
+export default function ChartEditor(props: ChartEditorProps): React.JSX.Element {
+    return (
+        <ReactFlowProvider>
+            <ChartEditorInner {...props} />
+        </ReactFlowProvider>
+    );
+}
