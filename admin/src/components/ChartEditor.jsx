@@ -425,7 +425,7 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
         return current;
     };
 
-    const exportChart = () => downloadJson(`${chartId}.state-machine.json`, createExport([getCurrentChart()]));
+    const exportChart = () => downloadJson(`${chartId}.statechart.json`, createExport([getCurrentChart()]));
 
     const save = async () => {
         const newChart = getCurrentChart();
@@ -724,7 +724,7 @@ function ChartEditorInner({ chartId, chart: savedChart, activeIds, onSave, onCha
             </Box>
             <ResizablePanel
                 side="right"
-                storageKey="state-machine.propertiesWidth"
+                storageKey="statechart.propertiesWidth"
                 defaultWidth={360}
                 minWidth={260}
                 maxWidth={900}

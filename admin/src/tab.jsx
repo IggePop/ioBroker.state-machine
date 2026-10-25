@@ -4,4 +4,4 @@ import TabApp from "./tab-app";
 
 const container = /** @type {HTMLElement} */ (document.getElementById("root"));
 const root = createRoot(container);
-root.render(<TabApp adapterName="state-machine" />);
+root.render(<TabApp adapterName="statechart" />);

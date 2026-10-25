@@ -1,14 +1,14 @@
-![Logo](admin/state-machine.png)
-# ioBroker.state-machine
+![Logo](admin/statechart.png)
+# ioBroker.statechart
 
-[![NPM version](https://img.shields.io/npm/v/iobroker.state-machine.svg)](https://www.npmjs.com/package/iobroker.state-machine)
-[![Downloads](https://img.shields.io/npm/dm/iobroker.state-machine.svg)](https://www.npmjs.com/package/iobroker.state-machine)
-![Number of Installations](https://iobroker.live/badges/state-machine-installed.svg)
-![Current version in stable repository](https://iobroker.live/badges/state-machine-stable.svg)
+[![NPM version](https://img.shields.io/npm/v/iobroker.statechart.svg)](https://www.npmjs.com/package/iobroker.statechart)
+[![Downloads](https://img.shields.io/npm/dm/iobroker.statechart.svg)](https://www.npmjs.com/package/iobroker.statechart)
+![Number of Installations](https://iobroker.live/badges/statechart-installed.svg)
+![Current version in stable repository](https://iobroker.live/badges/statechart-stable.svg)
 
-[![NPM](https://nodei.co/npm/iobroker.state-machine.png?downloads=true)](https://nodei.co/npm/iobroker.state-machine/)
+[![NPM](https://nodei.co/npm/iobroker.statechart.png?downloads=true)](https://nodei.co/npm/iobroker.statechart/)
 
-**Tests:** ![Test and Release](https://github.com/IggePop/ioBroker.state-machine/workflows/Test%20and%20Release/badge.svg)
+**Tests:** ![Test and Release](https://github.com/IggePop/ioBroker.statechart/workflows/Test%20and%20Release/badge.svg)
 
 **[English](#english) | [Deutsch](#deutsch)**
 
@@ -45,10 +45,10 @@ actions, timers and function blocks are drawn in the ioBroker admin and executed
 The adapter is not in the ioBroker repositories yet, but can be installed directly from GitHub:
 
 - **Admin:** tab **Adapters** → icon **Install from custom URL** (GitHub cat) → tab **Custom** →
-  URL `https://github.com/IggePop/ioBroker.state-machine` → **Install**
+  URL `https://github.com/IggePop/ioBroker.statechart` → **Install**
 - **or on the console** of the ioBroker system:
   ```bash
-  iobroker url https://github.com/IggePop/ioBroker.state-machine
+  iobroker url https://github.com/IggePop/ioBroker.statechart
   ```
 
 Then add an instance of **State Machine**. This installs the current development version, which may
@@ -198,7 +198,7 @@ Imported charts are **paused**: their variables may refer to states of another s
 
 ### States created by the adapter
 
-For every chart, the adapter creates below `state-machine.<instance>.charts.<chart>`:
+For every chart, the adapter creates below `statechart.<instance>.charts.<chart>`:
 
 | State | Content |
 |---|---|
@@ -206,7 +206,7 @@ For every chart, the adapter creates below `state-machine.<instance>.charts.<cha
 | `activeStateIds` | IDs of all active states as JSON |
 | `snapshot` | Stored state of the chart (active states, when they were entered, locals), see below |
 
-The chart itself is stored in the object `state-machine.<instance>.charts.<chart>`.
+The chart itself is stored in the object `statechart.<instance>.charts.<chart>`.
 
 ### Restart of the adapter
 
@@ -272,10 +272,10 @@ Adapter ausgeführt.
 Der Adapter ist noch nicht in den ioBroker-Repositories, lässt sich aber direkt von GitHub installieren:
 
 - **Admin:** Reiter **Adapter** → Symbol **Aus eigener URL installieren** (GitHub-Katze) → Reiter
-  **Benutzerdefiniert** → URL `https://github.com/IggePop/ioBroker.state-machine` → **Installieren**
+  **Benutzerdefiniert** → URL `https://github.com/IggePop/ioBroker.statechart` → **Installieren**
 - **oder auf der Konsole** des ioBroker-Systems:
   ```bash
-  iobroker url https://github.com/IggePop/ioBroker.state-machine
+  iobroker url https://github.com/IggePop/ioBroker.statechart
   ```
 
 Danach eine Instanz von **Zustandsmaschine** hinzufügen. Installiert wird der aktuelle
@@ -432,7 +432,7 @@ im Reiter **Variablen** und starte das Chart dann mit dem Knopf in der Chart-Lis
 
 ### Vom Adapter angelegte Datenpunkte
 
-Für jedes Chart legt der Adapter unter `state-machine.<instanz>.charts.<chart>` an:
+Für jedes Chart legt der Adapter unter `statechart.<instanz>.charts.<chart>` an:
 
 | Datenpunkt | Inhalt |
 |---|---|
@@ -440,7 +440,7 @@ Für jedes Chart legt der Adapter unter `state-machine.<instanz>.charts.<chart>`
 | `activeStateIds` | IDs aller aktiven Zustände als JSON |
 | `snapshot` | Gespeicherter Zustand des Charts (aktive Zustände, wann sie betreten wurden, lokale Variablen), siehe unten |
 
-Das Chart selbst ist im Objekt `state-machine.<instanz>.charts.<chart>` gespeichert.
+Das Chart selbst ist im Objekt `statechart.<instanz>.charts.<chart>` gespeichert.
 
 ### Neustart des Adapters
 
@@ -522,6 +522,9 @@ with, endorsed or sponsored by The MathWorks, Inc.
     Placeholder for the next version (at the beginning of the line):
     ### **WORK IN PROGRESS**
 -->
+### **WORK IN PROGRESS**
+* (Igge) renamed from "state-machine" to "statechart", because npm does not accept the old name (too similar to an existing package)
+
 ### 0.1.0 (2026-10-25)
 * (Igge) initial release
 * (Igge) graphical chart editor in the admin side bar: states, transitions, nested states, function blocks, notes

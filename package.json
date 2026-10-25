@@ -1,13 +1,13 @@
 {
-  "name": "iobroker.state-machine",
+  "name": "iobroker.statechart",
   "version": "0.1.0",
-  "description": "state-machine",
+  "description": "Statecharts (hierarchical state machines) with a graphical editor for ioBroker",
   "author": {
     "name": "Igge",
     "email": "mail@igge.org"
   },
   "contributors": [],
-  "homepage": "https://github.com/IggePop/ioBroker.state-machine",
+  "homepage": "https://github.com/IggePop/ioBroker.statechart",
   "license": "MIT",
   "keywords": [
     "ioBroker",
@@ -18,7 +18,7 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/IggePop/ioBroker.state-machine.git"
+    "url": "https://github.com/IggePop/ioBroker.statechart.git"
   },
   "engines": {
     "node": ">=22"
@@ -93,7 +93,7 @@
     "upload:tab": "npm run build && node tools/upload-admin.js"
   },
   "bugs": {
-    "url": "https://github.com/IggePop/ioBroker.state-machine/issues"
+    "url": "https://github.com/IggePop/ioBroker.statechart/issues"
   },
   "readmeFilename": "README.md",
   "overrides": {

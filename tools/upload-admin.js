@@ -74,8 +74,9 @@ async function main() {
 
     try {
         const files = listFiles(adminDir);
+        const adapterName = JSON.parse(fs.readFileSync(path.join(root, "io-package.json"), "utf8")).common.name;
         for (const file of files) {
-            await objects.writeFileAsync("state-machine.admin", file, fs.readFileSync(path.join(adminDir, file)));
+            await objects.writeFileAsync(`${adapterName}.admin`, file, fs.readFileSync(path.join(adminDir, file)));
         }
         console.log(`Uploaded ${files.length} admin files`);
     } finally {

@@ -533,7 +533,7 @@ class TabApp extends GenericApp {
             <Box sx={{ display: "flex", height: "100%", bgcolor: "background.default", color: "text.primary" }}>
                 <ResizablePanel
                     side="left"
-                    storageKey="state-machine.chartListWidth"
+                    storageKey="statechart.chartListWidth"
                     defaultWidth={240}
                     minWidth={160}
                     maxWidth={600}

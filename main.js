@@ -9,14 +9,14 @@
 const utils = require("@iobroker/adapter-core");
 const { ChartRuntime } = require("./lib/chart-runtime");
 
-class StateMachine extends utils.Adapter {
+class Statechart extends utils.Adapter {
     /**
      * @param {Partial<utils.AdapterOptions>} [options] - Adapter options
      */
     constructor(options) {
         super({
             ...options,
-            name: "state-machine",
+            name: "statechart",
         });
         /** @type {Map<string, ChartRuntime>} running charts by chart ID */
         this.runtimes = new Map();
@@ -272,8 +272,8 @@ if (require.main !== module) {
     /**
      * @param {Partial<utils.AdapterOptions>} [options] - Adapter options
      */
-    module.exports = options => new StateMachine(options);
+    module.exports = options => new Statechart(options);
 } else {
     // otherwise start the instance directly
-    new StateMachine();
+    new Statechart();
 }

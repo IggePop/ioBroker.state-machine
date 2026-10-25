@@ -239,7 +239,7 @@ export default function SymbolsEditor({ symbols, onChange, socket, theme }) {
                     theme={theme}
                     themeType={theme.palette.mode}
                     imagePrefix="../.."
-                    dialogName="state-machine"
+                    dialogName="statechart"
                     types={["state"]}
                     selected={symbols[selectFor]?.stateId || ""}
                     onClose={() => setSelectFor(null)}
