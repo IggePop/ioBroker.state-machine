@@ -75,9 +75,20 @@ describe("chart-codegen => generateChartCode", () => {
 
     it("processes only the state which was active when the chart woke up", () => {
         const code = generateChartCode(createChart(), "heating");
+        // "return": a state entered by a transition is not processed in the same step
         expect(code).to.include(
-            '    if (isActive("auto")) {\n        process_auto(input);\n    } else if (isActive("manualState")) {\n',
+            '    if (isActive("auto")) {\n        return process_auto(input);\n    }\n    if (isActive("manualState")) {\n',
         );
+        expect(code).to.include("function wakeup(input) {\n    step(input);\n");
+    });
+
+    it("shows the super step", () => {
+        const chart = createChart();
+        chart.superStep = true;
+        const code = generateChartCode(chart, "heating");
+        expect(code).to.include("for (let steps = 0; steps < 100 && step(input); steps++) {\n        input = null;\n");
+        // the generated code is valid JavaScript
+        acorn.parse(code, { ecmaVersion: "latest" });
     });
 
     it("indents multi line actions", () => {

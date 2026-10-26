@@ -98,6 +98,10 @@ class ChartRuntime {
   pendingHistory = [];
   /** JSON of the last values passed to host.onValues(), to pass only changes */
   lastValues = "";
+  /** what caused the current wakeup, for the history */
+  wakeupCause = "input";
+  /** name of the input which caused the current wakeup, for the history */
+  wakeupInput = null;
   hash;
   actor = null;
   /** the current time, can be replaced in tests */
@@ -147,8 +151,7 @@ class ChartRuntime {
       this.startActor(machine);
     }
     this.pendingHistory.push({ ts: this.now(), kind: "start", restored, active: this.activeNames });
-    this.persist();
-    this.publishLive();
+    this.wakeup(null, "start");
   }
   /**
    * Starts the chart in its initial state, the entry actions are executed
@@ -437,20 +440,47 @@ class ChartRuntime {
     this.wakeup(symbol.name);
   }
   /**
-   * @param input Name of the input which caused the wakeup, null for timers
+   * @param input Name of the input which caused the wakeup, null for timers and the start
+   * @param cause What caused the wakeup
    */
-  wakeup(input) {
+  wakeup(input, cause = input === null ? "timer" : "input") {
     if (!this.actor) {
       return;
     }
-    for (const id of this.getActiveChildren(null)) {
-      if (this.processState(id, input)) {
-        break;
+    this.wakeupCause = cause;
+    this.wakeupInput = input;
+    if (!this.chart.superStep) {
+      this.step(input);
+    } else {
+      let steps = 0;
+      let stepInput = input;
+      while (steps < import_chart_model.MAX_SUPER_STEPS && this.step(stepInput)) {
+        steps++;
+        stepInput = null;
+      }
+      if (steps >= import_chart_model.MAX_SUPER_STEPS) {
+        this.host.log.warn(
+          `[${this.chart.name}] Stopped after ${import_chart_model.MAX_SUPER_STEPS} transitions in one wakeup, the transitions probably form a loop. The chart continues on the next wakeup.`
+        );
       }
     }
     this.writeChangedOutputs();
     this.persist();
     this.publishLive();
+  }
+  /**
+   * Processes the active states once, see the class description
+   *
+   * @param input Name of the input which caused the wakeup, null if the step has no event
+   * @returns true if a transition was taken
+   */
+  step(input) {
+    for (const id of this.getActiveChildren(null)) {
+      if (this.processState(id, input)) {
+        return true;
+      }
+    }
+    return false;
   }
   /**
    * Passes the events since the last call and the changed values of the variables to the host
@@ -540,7 +570,9 @@ class ChartRuntime {
         transition: transition.id,
         from: transition.from,
         to: transition.to,
-        trigger: input,
+        // in a super step, all transitions of the wakeup were caused by its input
+        trigger: this.wakeupInput,
+        cause: this.wakeupCause,
         active: this.activeNames
       });
       return true;

@@ -8,6 +8,9 @@
 /** Current version of the chart model, increase on incompatible changes */
 export const CHART_MODEL_VERSION = 1;
 
+/** Maximum number of transitions in one wakeup with super step semantics, protects against loops */
+export const MAX_SUPER_STEPS = 100;
+
 export type SymbolScope = "input" | "output" | "local";
 
 export type InputTrigger = "update" | "change";
@@ -136,6 +139,11 @@ export interface Chart {
     enabled: boolean;
     /** Continue with the state from before a restart of the adapter, default true */
     restoreState?: boolean;
+    /**
+     * Super step semantics: after a transition, the chart is checked again right away, until no transition is valid
+     * anymore (at most MAX_SUPER_STEPS transitions per wakeup). Default false: one transition per wakeup.
+     */
+    superStep?: boolean;
     /** ID of the initial top level state (default transition) */
     initial?: string;
     symbols: ChartSymbol[];
@@ -554,7 +562,7 @@ function normalizeChart(data: any, where: string): Chart {
         };
     });
 
-    return {
+    const chart: Chart = {
         ...data,
         version: CHART_MODEL_VERSION,
         name: typeof data.name === "string" && data.name.trim() ? data.name.trim() : where,
@@ -566,6 +574,11 @@ function normalizeChart(data: any, where: string): Chart {
         functions: normalizedFunctions,
         notes: normalizedNotes,
     };
+    // the default (off) is not stored, like in the editor
+    if (chart.superStep !== true) {
+        delete chart.superStep;
+    }
+    return chart;
 }
 
 /**

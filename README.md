@@ -232,6 +232,8 @@ The chart itself is stored in the object `statechart.<instance>.charts.<chart>`.
 After a restart of the adapter or of ioBroker, every chart continues in the states which were active
 before, with its local variables. The entry actions are not executed again, and timers continue with
 their remaining time. A timer which expired while the adapter was stopped is taken right after the start.
+Like after every start, the chart then wakes up once, so changes of the inputs during the stop are
+noticed.
 
 The chart starts in its initial state instead if it was changed meanwhile (positions in the editor do not
 count), after saving it in the editor, after pausing it, and if the option **Restore the state after a
@@ -240,7 +242,14 @@ restart** in the chart properties is switched off. Variables declared in functio
 ### Execution model and differences to other statechart tools
 
 - The adapter uses [XState](https://stately.ai/docs/xstate) to execute the charts.
-- Every change of an input wakes up the chart once. Transitions without event are checked on every wakeup.
+- Every change of an input wakes up the chart once, as well as an expiring `after(...)` and the start of the chart
+  (also after restoring it). Transitions without event, e.g. without label, are checked on every wakeup, so they
+  are taken right after the start if their condition is true.
+- By default, only one transition is taken per wakeup, a following one waits for the next wakeup. With the
+  chart option **Take transitions until none is valid (super step)**, the chart is checked again right after a
+  transition, until no transition is valid anymore, like the super step semantics of Stateflow. The event of an
+  input only counts for the first transition of a wakeup, during actions may run several times. To protect against
+  loops, at most 100 transitions are taken per wakeup, then a warning is logged.
 - `{action}` is executed while the transition is taken, i.e. after `exit` of the old and before `entry` of
   the new state. A separate condition action and `/action` are not supported (yet).
 - Transitions are selected like in Stateflow (outer before inner, see above), XState only executes them.
@@ -485,7 +494,8 @@ Das Chart selbst ist im Objekt `statechart.<instanz>.charts.<chart>` gespeichert
 Nach einem Neustart des Adapters oder von ioBroker macht jedes Chart in den Zuständen weiter, die
 vorher aktiv waren, mit seinen lokalen Variablen. Die entry-Aktionen laufen nicht noch einmal, und Timer
 laufen mit ihrer Restzeit weiter. Ein Timer, der abgelaufen ist, während der Adapter gestoppt war, greift
-gleich nach dem Start.
+gleich nach dem Start. Wie nach jedem Start wacht das Chart dann einmal auf, so werden Änderungen der
+Eingänge während des Stopps bemerkt.
 
 Im Startzustand beginnt das Chart stattdessen, wenn es zwischendurch geändert wurde (Positionen im
 Editor zählen nicht), nach dem Speichern im Editor, nach dem Anhalten und wenn die Option **Zustand nach
@@ -495,7 +505,14 @@ Funktionsblöcken deklariert sind, werden nicht wiederhergestellt.
 ### Ausführung und Unterschiede zu anderen Statechart-Werkzeugen
 
 - Der Adapter führt die Charts mit [XState](https://stately.ai/docs/xstate) aus.
-- Jede Änderung eines Eingangs weckt das Chart einmal auf. Übergänge ohne Event werden bei jedem Aufwecken geprüft.
+- Jede Änderung eines Eingangs weckt das Chart einmal auf, ebenso ein ablaufendes `after(...)` und der Start des
+  Charts (auch nach dem Wiederherstellen). Übergänge ohne Event, z.B. ohne Beschriftung, werden bei jedem Aufwecken
+  geprüft und greifen deshalb direkt nach dem Start, wenn ihre Bedingung wahr ist.
+- Standardmäßig wird pro Aufwecken nur ein Übergang genommen, ein folgender wartet auf das nächste Aufwecken. Mit der
+  Chart-Option **Weiterschalten, bis kein Übergang mehr gilt (Super-Step)** wird das Chart nach einem Übergang sofort
+  erneut geprüft, bis kein Übergang mehr gilt, wie bei der Super-Step-Semantik von Stateflow. Das Event eines
+  Eingangs zählt nur für den ersten Übergang eines Aufweckens, during-Aktionen können mehrmals laufen. Zum Schutz vor
+  Schleifen werden pro Aufwecken höchstens 100 Übergänge genommen, danach wird eine Warnung geloggt.
 - `{aktion}` wird während des Übergangs ausgeführt, also nach `exit` des alten und vor `entry` des
   neuen Zustands. Eine eigene Condition Action und `/aktion` werden (noch) nicht unterstützt.
 - Übergänge werden wie bei Stateflow ausgewählt (außen vor innen, siehe oben), XState führt sie nur aus.
@@ -572,6 +589,8 @@ with, endorsed or sponsored by The MathWorks, Inc.
 * (Igge) live values of the variables in the editor
 * (Igge) taken transitions light up in the editor
 * (Igge) history of the starts and the transitions taken (tab "History", state `charts.<chart>.history`)
+* (Igge) a chart wakes up once right after the start, so transitions without label are taken without waiting for a change of an input
+* (Igge) chart option "super step": take transitions until none is valid anymore
 
 ### 0.1.1 (2026-10-25)
 * (Igge) renamed from "state-machine" to "statechart", because npm does not accept the old name (too similar to an existing package)

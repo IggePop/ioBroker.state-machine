@@ -19,7 +19,16 @@ function describeEntry(entry: HistoryEntry): { primary: string; secondary: strin
     if (entry.kind === "start") {
         return { primary: I18n.t(entry.restored ? "Chart restored" : "Chart started"), secondary: active };
     }
-    const trigger = entry.trigger ? I18n.t("triggeredBy", entry.trigger) : I18n.t("triggeredByTimer");
+    // entries of older versions have no cause: an input if the trigger is set, otherwise a timer
+    const cause = entry.cause ?? (entry.trigger ? "input" : "timer");
+    let trigger;
+    if (cause === "input") {
+        trigger = I18n.t("triggeredBy", entry.trigger ?? "");
+    } else if (cause === "start") {
+        trigger = I18n.t("triggeredByStart");
+    } else {
+        trigger = I18n.t("triggeredByTimer");
+    }
     return { primary: `${entry.from} → ${entry.to}`, secondary: `${trigger} · ${active}` };
 }
 

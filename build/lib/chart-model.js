@@ -21,6 +21,7 @@ __export(chart_model_exports, {
   CHART_MODEL_VERSION: () => CHART_MODEL_VERSION,
   EXPORT_FORMAT: () => EXPORT_FORMAT,
   LabelSyntaxError: () => LabelSyntaxError,
+  MAX_SUPER_STEPS: () => MAX_SUPER_STEPS,
   createChart: () => createChart,
   createExport: () => createExport,
   formatMessage: () => formatMessage,
@@ -31,6 +32,7 @@ __export(chart_model_exports, {
 });
 module.exports = __toCommonJS(chart_model_exports);
 const CHART_MODEL_VERSION = 1;
+const MAX_SUPER_STEPS = 100;
 const TIME_UNITS = {
   msec: 1,
   sec: 1e3,
@@ -296,7 +298,7 @@ function normalizeChart(data, where) {
       y: Number.isFinite(note.y) ? note.y : 0
     };
   });
-  return {
+  const chart = {
     ...data,
     version: CHART_MODEL_VERSION,
     name: typeof data.name === "string" && data.name.trim() ? data.name.trim() : where,
@@ -308,6 +310,10 @@ function normalizeChart(data, where) {
     functions: normalizedFunctions,
     notes: normalizedNotes
   };
+  if (chart.superStep !== true) {
+    delete chart.superStep;
+  }
+  return chart;
 }
 function parseExport(text) {
   let data;
@@ -335,6 +341,7 @@ function parseExport(text) {
   CHART_MODEL_VERSION,
   EXPORT_FORMAT,
   LabelSyntaxError,
+  MAX_SUPER_STEPS,
   createChart,
   createExport,
   formatMessage,

@@ -1,5 +1,6 @@
 import { expect } from "chai";
 import { ChartRuntime, getChartHash } from "./chart-runtime";
+import { MAX_SUPER_STEPS } from "./chart-model";
 import type { HistoryEntry, PersistedChart } from "./chart-runtime";
 import type { Chart, ChartState, ChartSymbol } from "./chart-model";
 import { validateCode } from "./chart-validation";
@@ -125,10 +126,45 @@ describe("chart-runtime => ChartRuntime", () => {
         const host = createHost({ "test.0.motion": false });
         runtime = new ChartRuntime("light", chart, host);
         await runtime.start();
-        runtime.handleInput("test.0.motion", false);
+        // the wakeup after the start
         expect(runtime.sandbox.count).to.equal(10);
+        runtime.handleInput("test.0.motion", false);
+        expect(runtime.sandbox.count).to.equal(20);
+        // a transition is taken: no during action, but the entry action of "On"
         runtime.handleInput("test.0.motion", true);
-        expect(runtime.sandbox.count).to.equal(1 + 10);
+        expect(runtime.sandbox.count).to.equal(1 + 20);
+    });
+
+    it("wakes up once after the start, so transitions without event are taken right away", async () => {
+        const chart = createLightChart();
+        chart.states.push({ id: "end", name: "End", x: 0, y: 0 });
+        chart.transitions = [
+            { id: "t1", source: "off", target: "on" },
+            { id: "t2", source: "on", target: "end", label: "" },
+        ];
+        const host = createHost({ "test.0.motion": false });
+        runtime = new ChartRuntime("light", chart, host);
+        await runtime.start();
+        // only one transition per wakeup, the next one waits for the next wakeup
+        expect(host.active).to.deep.equal(["Off", "On"]);
+        expect(host.history.map(e => e.cause ?? e.kind)).to.deep.equal(["start", "start"]);
+        runtime.handleInput("test.0.motion", true);
+        expect(host.active.at(-1)).to.equal("End");
+    });
+
+    it("wakes up after restoring as well", async () => {
+        const chart = createLightChart();
+        chart.transitions[0].label = "[motion]";
+        const host = createHost({ "test.0.motion": false });
+        const first = new ChartRuntime("light", chart, host);
+        await first.start();
+        first.stop();
+        // the input changed while the adapter was stopped
+        host.states["test.0.motion"] = true;
+        runtime = new ChartRuntime("light", chart, host);
+        await runtime.start({ restore: true });
+        expect(host.active.at(-1)).to.equal("On");
+        expect(host.history.at(-1)).to.include({ transition: "t1", cause: "start", trigger: null });
     });
 
     it("re-enters the state on self transitions", async () => {
@@ -251,6 +287,7 @@ describe("chart-runtime => live values and history", () => {
             from: "Off",
             to: "On",
             trigger: "motion",
+            cause: "input",
             active: "On",
         });
         runtime.handleInput("test.0.motion", false);
@@ -258,7 +295,7 @@ describe("chart-runtime => live values and history", () => {
         expect(host.history).to.have.length(2);
         runtime.now = () => now + 60;
         runtime.wakeup(null);
-        expect(host.history[2]).to.include({ transition: "t2", trigger: null, active: "Off" });
+        expect(host.history[2]).to.include({ transition: "t2", trigger: null, cause: "timer", active: "Off" });
         expect(host.historyCalls).to.equal(3);
     });
 
@@ -271,6 +308,93 @@ describe("chart-runtime => live values and history", () => {
         runtime = new ChartRuntime("light", createLightChart(), host);
         await runtime.start({ restore: true });
         expect(host.history.at(-1)).to.include({ kind: "start", restored: true, active: "On" });
+    });
+});
+
+describe("chart-runtime => super step", () => {
+    let runtime: ChartRuntime | undefined;
+    afterEach(() => runtime?.stop());
+
+    /**
+     * A chain Off -> On -> End, the transitions have the given labels
+     *
+     * @param labels Labels of the transitions Off -> On and On -> End
+     * @param superStep If super step semantics are used
+     */
+    function createChain(labels: [string, string], superStep: boolean): Chart {
+        const chart = createLightChart();
+        chart.superStep = superStep;
+        chart.states.push({ id: "end", name: "End", x: 0, y: 0, entry: "count += 10;" });
+        chart.transitions = [
+            { id: "t1", source: "off", target: "on", label: labels[0] },
+            { id: "t2", source: "on", target: "end", label: labels[1] },
+        ];
+        return chart;
+    }
+
+    it("takes transitions until none is valid anymore", async () => {
+        const host = createHost({ "test.0.motion": false });
+        runtime = new ChartRuntime("light", createChain(["", ""], true), host);
+        await runtime.start();
+        expect(host.active).to.deep.equal(["Off", "On", "End"]);
+        expect(host.history.filter(e => e.kind === "transition").map(e => e.cause)).to.deep.equal(["start", "start"]);
+        // all entry actions were executed
+        expect(runtime.sandbox.count).to.equal(11);
+    });
+
+    it("takes only one transition per wakeup without super step", async () => {
+        const host = createHost({ "test.0.motion": false });
+        runtime = new ChartRuntime("light", createChain(["", ""], false), host);
+        await runtime.start();
+        expect(host.active).to.deep.equal(["Off", "On"]);
+    });
+
+    it("uses the event of the input only in the first step", async () => {
+        const host = createHost({ "test.0.motion": false });
+        runtime = new ChartRuntime("light", createChain(["motion", "motion"], true), host);
+        await runtime.start();
+        runtime.handleInput("test.0.motion", true);
+        expect(host.active).to.deep.equal(["Off", "On"]);
+        runtime.handleInput("test.0.motion", true);
+        expect(host.active).to.deep.equal(["Off", "On", "End"]);
+    });
+
+    it("records the input of the wakeup for all transitions of the chain", async () => {
+        const host = createHost({ "test.0.motion": false });
+        runtime = new ChartRuntime("light", createChain(["motion[motion]", "[motion]"], true), host);
+        await runtime.start();
+        runtime.handleInput("test.0.motion", true);
+        expect(host.active.at(-1)).to.equal("End");
+        expect(host.history.filter(e => e.kind === "transition").map(e => [e.trigger, e.cause])).to.deep.equal([
+            ["motion", "input"],
+            ["motion", "input"],
+        ]);
+    });
+
+    it("executes the during actions of the reached state, and stops a loop of transitions", async () => {
+        const chart = createLightChart();
+        chart.superStep = true;
+        chart.states[0].entry = "";
+        chart.states[1].entry = "";
+        chart.states[1].during = "count++;";
+        // Off and On switch back and forth as long as motion is true
+        chart.transitions = [
+            { id: "t1", source: "off", target: "on", label: "" },
+            { id: "t2", source: "on", target: "off", label: "[motion]" },
+        ];
+        const host = createHost({ "test.0.motion": false });
+        runtime = new ChartRuntime("light", chart, host);
+        await runtime.start();
+        // On is reached, no transition is valid: its during action is executed in the last step
+        expect(host.active.at(-1)).to.equal("On");
+        expect(runtime.sandbox.count).to.equal(1);
+
+        runtime.handleInput("test.0.motion", true);
+        expect(host.warnings.join()).to.match(/Stopped after 100 transitions in one wakeup/);
+        expect(host.history.filter(e => e.kind === "transition")).to.have.length(1 + MAX_SUPER_STEPS);
+        // the chart still works
+        runtime.handleInput("test.0.motion", false);
+        expect(host.active.at(-1)).to.equal("On");
     });
 });
 
@@ -514,6 +638,8 @@ describe("chart-runtime => triggers of inputs", () => {
         const host = createHost({ "test.0.motion": false });
         runtime = new ChartRuntime("light", chart, host);
         await runtime.start();
+        // only the wakeups by the input are counted, not the one after the start
+        runtime.sandbox.count = 0;
         return runtime;
     }
 
@@ -638,8 +764,9 @@ describe("chart-runtime => nested states (Stateflow semantics)", () => {
     }
 
     it("enters parents before children and leaves children before parents", async () => {
-        const host = await start(createHeatingChart(), { "test.0.temp": 18, "test.0.manual": false });
-        expect(runtime?.sandbox.trace).to.deep.equal(["Auto/entry", "Idle/entry"]);
+        // 21: no transition in the wakeup after the start
+        const host = await start(createHeatingChart(), { "test.0.temp": 21, "test.0.manual": false });
+        expect(runtime?.sandbox.trace).to.deep.equal(["Auto/entry", "Idle/entry", "Auto/during", "Idle/during"]);
         runtime?.sandbox.trace.splice(0);
         runtime?.handleInput("test.0.manual", true);
         expect(runtime?.sandbox.trace).to.deep.equal(["Idle/exit", "Auto/exit", "Manual/entry"]);
@@ -717,6 +844,7 @@ describe("chart-runtime => nested states (Stateflow semantics)", () => {
         const host = await start(createHeatingChart(), { "test.0.temp": 18, "test.0.manual": false });
         runtime?.handleInput("test.0.temp", 18);
         expect(host.active.at(-1)).to.equal("Auto.Heat");
+        const trace = [...runtime?.sandbox.trace];
         runtime?.stop();
 
         host.active = [];
@@ -724,8 +852,9 @@ describe("chart-runtime => nested states (Stateflow semantics)", () => {
         await runtime.start({ restore: true });
         expect(host.active).to.deep.equal(["Auto.Heat"]);
         expect([...runtime.enteredAt.keys()]).to.deep.equal(["auto", "heat"]);
-        // the trace (a local) is restored as well, without new entries
-        expect(runtime.sandbox.trace.at(-1)).to.equal("Heat/entry");
+        // the trace (a local) is restored as well, without new entry actions,
+        // only the during actions of the wakeup after the start are added
+        expect(runtime.sandbox.trace).to.deep.equal([...trace, "Auto/during", "Heat/during"]);
     });
 
     it("uses the first child if the initial state is no child (anymore)", async () => {

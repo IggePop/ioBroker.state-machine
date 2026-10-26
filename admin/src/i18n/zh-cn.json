@@ -110,5 +110,8 @@
     "Chart restored": "Chart continued after a restart",
     "triggeredBy": "by input %s",
     "triggeredByTimer": "by a timer (after)",
-    "activeAfter": "then active: %s"
+    "activeAfter": "then active: %s",
+    "triggeredByStart": "right after the start",
+    "Take transitions until none is valid (super step)": "Take transitions until none is valid (super step)",
+    "superStepHelp": "Off: one transition per wakeup, the next one waits for the next wakeup. On: after a transition, the chart is checked again right away, until no transition is valid anymore (at most %s). Events of inputs only count for the first transition. During actions can be executed several times per wakeup."
 }

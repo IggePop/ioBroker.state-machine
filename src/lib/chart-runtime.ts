@@ -4,7 +4,7 @@ import SunCalc from "suncalc";
 import { createActor, createMachine } from "xstate";
 import type { AnyActor, AnyStateMachine } from "xstate";
 import { isTimeBetween } from "./chart-helpers";
-import { parseTransitionLabel } from "./chart-model";
+import { MAX_SUPER_STEPS, parseTransitionLabel } from "./chart-model";
 import type { Chart, ChartState, ChartSymbol, ChartTransition } from "./chart-model";
 import { ChartStructure } from "./chart-structure";
 import { getDeclarations, validateChart } from "./chart-validation";
@@ -59,6 +59,11 @@ export interface Location {
 }
 
 /**
+ * What woke up the chart: a change of an input, a timer of after(...), or the start of the chart
+ */
+export type WakeupCause = "input" | "timer" | "start";
+
+/**
  * An event of a running chart, shown in the history of the editor
  */
 export interface HistoryEntry {
@@ -74,8 +79,10 @@ export interface HistoryEntry {
     from?: string;
     /** Transition only: name of the target state */
     to?: string;
-    /** Transition only: name of the input which woke up the chart, null if a timer (after) did it */
+    /** Transition only: name of the input which woke up the chart, null for the other causes */
     trigger?: string | null;
+    /** Transition only: what woke up the chart (missing in entries of older versions: input if trigger is set) */
+    cause?: WakeupCause;
     /** Name paths of the active states after the event, e.g. "Auto.Heat" */
     active: string;
 }
@@ -175,6 +182,10 @@ export class ChartRuntime {
     pendingHistory: HistoryEntry[] = [];
     /** JSON of the last values passed to host.onValues(), to pass only changes */
     lastValues = "";
+    /** what caused the current wakeup, for the history */
+    wakeupCause: WakeupCause = "input";
+    /** name of the input which caused the current wakeup, for the history */
+    wakeupInput: string | null = null;
     readonly hash: string;
     actor: AnyActor | null = null;
     /** the current time, can be replaced in tests */
@@ -243,8 +254,9 @@ export class ChartRuntime {
             this.startActor(machine);
         }
         this.pendingHistory.push({ ts: this.now(), kind: "start", restored, active: this.activeNames });
-        this.persist();
-        this.publishLive();
+        // like the first time step in Stateflow: transitions without event, whose condition is already true,
+        // are taken right away instead of on the next change of an input
+        this.wakeup(null, "start");
     }
 
     /**
@@ -558,21 +570,51 @@ export class ChartRuntime {
     }
 
     /**
-     * @param input Name of the input which caused the wakeup, null for timers
+     * @param input Name of the input which caused the wakeup, null for timers and the start
+     * @param cause What caused the wakeup
      */
-    wakeup(input: string | null): void {
+    wakeup(input: string | null, cause: WakeupCause = input === null ? "timer" : "input"): void {
         if (!this.actor) {
             return;
         }
-        for (const id of this.getActiveChildren(null)) {
-            if (this.processState(id, input)) {
-                break;
+        this.wakeupCause = cause;
+        this.wakeupInput = input;
+        if (!this.chart.superStep) {
+            this.step(input);
+        } else {
+            // super step: take transitions until none is valid anymore. Like in Stateflow, the event of the input
+            // is only present in the first step, the following steps check the transitions without event.
+            let steps = 0;
+            let stepInput = input;
+            while (steps < MAX_SUPER_STEPS && this.step(stepInput)) {
+                steps++;
+                stepInput = null;
+            }
+            if (steps >= MAX_SUPER_STEPS) {
+                this.host.log.warn(
+                    `[${this.chart.name}] Stopped after ${MAX_SUPER_STEPS} transitions in one wakeup, the transitions probably form a loop. The chart continues on the next wakeup.`,
+                );
             }
         }
         // functions called in conditions may have changed outputs as well
         this.writeChangedOutputs();
         this.persist();
         this.publishLive();
+    }
+
+    /**
+     * Processes the active states once, see the class description
+     *
+     * @param input Name of the input which caused the wakeup, null if the step has no event
+     * @returns true if a transition was taken
+     */
+    step(input: string | null): boolean {
+        for (const id of this.getActiveChildren(null)) {
+            if (this.processState(id, input)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -668,7 +710,9 @@ export class ChartRuntime {
                 transition: transition.id,
                 from: transition.from,
                 to: transition.to,
-                trigger: input,
+                // in a super step, all transitions of the wakeup were caused by its input
+                trigger: this.wakeupInput,
+                cause: this.wakeupCause,
                 active: this.activeNames,
             });
             return true;

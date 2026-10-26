@@ -192,7 +192,15 @@ function generateChartCode(chart, chartId) {
     }
     lines.push(`${INDENT}},`);
   }
-  lines.push("});", "", "const actor = createActor(machine);", "actor.start();", "");
+  lines.push(
+    "});",
+    "",
+    "const actor = createActor(machine);",
+    "actor.start();",
+    "// once right after the start, so transitions without event are taken without waiting for an input",
+    "wakeup(null);",
+    ""
+  );
   const callActive = (states, level, prefix) => states.map(
     (s) => `${INDENT.repeat(level)}if (isActive(${JSON.stringify(s.id)})) {
 ${INDENT.repeat(level + 1)}${prefix}process_${identifier(s.id)}(input);
@@ -203,18 +211,32 @@ ${INDENT.repeat(level)}}`
     "",
     "/**",
     " * Called once for every change of an input, after its variable got the new value,",
-    " * and when the time of an after(...) of an active state has come (input is null then).",
+    " * when the time of an after(...) of an active state has come, and once after the start",
+    " * (input is null for the last two).",
     " * Starting with the outermost active state, each active state is processed, see process_...().",
     " *",
     " * @param {string | null} input name of the changed input",
     " */",
     "function wakeup(input) {",
-    ...topLevel.flatMap((s, i) => [
-      `${INDENT}${i ? "} else " : ""}if (isActive(${JSON.stringify(s.id)})) {`,
-      `${INDENT}${INDENT}process_${identifier(s.id)}(input);`
-    ]),
-    ...topLevel.length ? [`${INDENT}}`] : [],
+    ...chart.superStep ? [
+      `${INDENT}// super step: take transitions until none is valid anymore, at most ${import_chart_model.MAX_SUPER_STEPS}.`,
+      `${INDENT}// The event of the input is only present in the first step.`,
+      `${INDENT}for (let steps = 0; steps < ${import_chart_model.MAX_SUPER_STEPS} && step(input); steps++) {`,
+      `${INDENT}${INDENT}input = null;`,
+      `${INDENT}}`
+    ] : [`${INDENT}step(input);`],
     `${INDENT}writeChangedOutputs();`,
+    "}",
+    "",
+    "/**",
+    " * Processes the active states once",
+    " *",
+    " * @param {string | null} input name of the changed input, null if the step has no event",
+    " * @returns {boolean} true if a transition was taken",
+    " */",
+    "function step(input) {",
+    ...callActive(topLevel, 1, "return "),
+    `${INDENT}return false;`,
     "}",
     ""
   );
@@ -302,7 +324,7 @@ ${INDENT}}`
     "//",
     "// The adapter stores the active states, the times they were entered and the locals in the state",
     "// charts.<chart>.snapshot. After a restart of the adapter it continues with them, without executing the",
-    "// entry actions again, if the chart was not changed meanwhile.",
+    "// entry actions again, if the chart was not changed meanwhile. Then it wakes up once, like after a start.",
     ""
   );
   return lines.join("\n");

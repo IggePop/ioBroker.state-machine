@@ -110,5 +110,8 @@
     "Chart restored": "Chart nach einem Neustart fortgesetzt",
     "triggeredBy": "durch Eingang %s",
     "triggeredByTimer": "durch einen Timer (after)",
-    "activeAfter": "danach aktiv: %s"
+    "activeAfter": "danach aktiv: %s",
+    "triggeredByStart": "direkt nach dem Start",
+    "Take transitions until none is valid (super step)": "Weiterschalten, bis kein Übergang mehr gilt (Super-Step)",
+    "superStepHelp": "Aus: ein Übergang pro Aufwecken, der nächste wartet auf das nächste Aufwecken. An: Nach einem Übergang wird das Chart sofort erneut geprüft, bis kein Übergang mehr gilt (höchstens %s). Events von Eingängen zählen nur für den ersten Übergang. During-Aktionen können pro Aufwecken mehrmals laufen."
 }

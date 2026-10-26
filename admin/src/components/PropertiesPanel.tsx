@@ -5,6 +5,7 @@ import { I18n } from "@iobroker/adapter-react-v5";
 import { GLOBALS, validateChart, validateCode, validateTransitionLabel } from "../../../src/lib/chart-validation";
 import type { Declaration, Diagnostic } from "../../../src/lib/chart-validation";
 import { HELPERS } from "../../../src/lib/chart-helpers";
+import { MAX_SUPER_STEPS } from "../../../src/lib/chart-model";
 import type {
     Chart,
     ChartFunction,
@@ -355,6 +356,25 @@ function ChartProperties({
                     color="text.secondary"
                 >
                     {I18n.t("restoreStateHelp")}
+                </Typography>
+            </Box>
+            <Box>
+                <FormControlLabel
+                    control={
+                        <Checkbox
+                            checked={!!chart.superStep}
+                            // the default is stored as undefined, so it does not appear in the chart
+                            onChange={e => onChange({ superStep: e.target.checked || undefined })}
+                        />
+                    }
+                    label={I18n.t("Take transitions until none is valid (super step)")}
+                />
+                <Typography
+                    variant="caption"
+                    component="div"
+                    color="text.secondary"
+                >
+                    {I18n.t("superStepHelp", String(MAX_SUPER_STEPS))}
                 </Typography>
             </Box>
             <Typography
