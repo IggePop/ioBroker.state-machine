@@ -479,7 +479,7 @@ describe("chart-runtime => temporal transitions and restoring after a restart", 
         expect(second.sandbox.count).to.equal(0);
     });
 
-    it("ignores changed positions in the editor", async () => {
+    it("ignores changed positions and ends of transitions in the editor", async () => {
         const host = createHost({ "test.0.motion": false });
         const first = await start(createLightChart(), host);
         first.handleInput("test.0.motion", true);
@@ -487,6 +487,8 @@ describe("chart-runtime => temporal transitions and restoring after a restart", 
 
         const moved = createLightChart();
         moved.states[1].x = 500;
+        moved.transitions[0].sourceAnchor = { side: "bottom", pos: 0.3 };
+        moved.transitions[0].targetAnchor = { side: "top", pos: 0.7 };
         host.active = [];
         await start(moved, host, true);
         expect(host.active).to.deep.equal(["On"]);

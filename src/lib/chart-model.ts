@@ -88,6 +88,17 @@ export interface ChartTransition {
     sourceHandle?: string;
     /** Side of the target state where the arrow ends (editor only) */
     targetHandle?: string;
+    /** Where the arrow starts on the border of the source state, automatic if missing (editor only) */
+    sourceAnchor?: EdgeAnchor;
+    /** Where the arrow ends on the border of the target state, automatic if missing (editor only) */
+    targetAnchor?: EdgeAnchor;
+}
+
+/** A point on the border of a state, set by dragging an end of a transition in the editor */
+export interface EdgeAnchor {
+    side: "top" | "right" | "bottom" | "left";
+    /** Position along the side: 0 = left/top end, 1 = right/bottom end */
+    pos: number;
 }
 
 /**

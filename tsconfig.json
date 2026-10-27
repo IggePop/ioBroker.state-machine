@@ -21,6 +21,7 @@
         "noImplicitOverride": true,
         "useUnknownInCatchVariables": false
     },
-    "include": ["src/**/*.ts", "test/**/*.js", "tools/**/*.js"],
-    "exclude": ["build/**", "node_modules/**", "admin/**"]
+    // the admin tab is checked with admin/tsconfig.json (with DOM types), only its tests are checked here
+    "include": ["src/**/*.ts", "admin/src/**/*.test.ts", "test/**/*.js", "tools/**/*.js"],
+    "exclude": ["build/**", "node_modules/**", "admin/build/**"]
 }

@@ -1,0 +1,16 @@
+diff --git a/node_modules/@iobroker/dev-server/dist/index.js b/node_modules/@iobroker/dev-server/dist/index.js
+index 063ae06..26107b9 100644
+--- a/node_modules/@iobroker/dev-server/dist/index.js
++++ b/node_modules/@iobroker/dev-server/dist/index.js
+@@ -1024,7 +1024,10 @@ class DevServer {
+                 }
+             });
+             watcher.on('unlink', (filename) => {
+-                (0, fs_extra_1.unlinkSync)(inDest(filename));
++                // the copy may already be deleted, e.g. a .map file together with its .js file
++                if ((0, fs_extra_1.existsSync)(inDest(filename))) {
++                    (0, fs_extra_1.unlinkSync)(inDest(filename));
++                }
+                 const map = inDest(`${filename}.map`);
+                 if ((0, fs_extra_1.existsSync)(map)) {
+                     (0, fs_extra_1.unlinkSync)(map);

@@ -67,7 +67,10 @@ Requirements: Node.js 22 or newer, js-controller 6.0.11 or newer, admin 7.6.17 o
    - **Local**: only exists inside the chart, with an initial value
 4. Add states with **Add state**. The state marked with the dot and arrow is the initial state
    (can be changed in the properties of a state).
-5. Draw transitions by dragging from the border of a state to another state (or to itself).
+5. Draw transitions by dragging from the border of a state to another state (or to itself). The arrows start and
+   end where the states face each other and follow them when they are moved. To fix an end at another place,
+   select the transition and drag the round grip at the end along the border (double click: automatic again). To
+   move a transition to another state, drop the grip on that state: its label and all other properties are kept.
 6. Select a state or transition (or double click it) to edit its actions or label on the right.
 7. Click **Save**. New charts are paused: start the chart with ▶ in the chart list. After saving, the adapter
    restarts a running chart immediately.
@@ -322,7 +325,11 @@ Voraussetzungen: Node.js 22 oder neuer, js-controller 6.0.11 oder neuer, Admin 7
    - **Lokal**: gibt es nur im Chart, mit einem Startwert
 4. Mit **Zustand hinzufügen** Zustände anlegen. Der Zustand mit Punkt und Pfeil ist der Startzustand
    (änderbar in den Eigenschaften eines Zustands).
-5. Übergänge zeichnen: vom Rand eines Zustands zu einem anderen Zustand (oder zu sich selbst) ziehen.
+5. Übergänge zeichnen: vom Rand eines Zustands zu einem anderen Zustand (oder zu sich selbst) ziehen. Die Pfeile
+   beginnen und enden dort, wo sich die Zustände gegenüberliegen, und folgen ihnen beim Verschieben. Um ein Ende
+   an einer anderen Stelle festzulegen, den Übergang auswählen und den runden Griff am Ende am Rand entlang ziehen
+   (Doppelklick: wieder automatisch). Um einen Übergang an einen anderen Zustand umzuhängen, den Griff auf diesen
+   Zustand ziehen: Beschriftung und alle anderen Eigenschaften bleiben erhalten.
 6. Einen Zustand oder Übergang anklicken (oder doppelklicken), um rechts seine Aktionen bzw. seine
    Beschriftung zu bearbeiten.
 7. **Speichern** klicken. Neue Charts sind angehalten: Starte das Chart mit ▶ in der Chart-Liste. Nach dem
@@ -591,6 +598,7 @@ with, endorsed or sponsored by The MathWorks, Inc.
 * (Igge) history of the starts and the transitions taken (tab "History", state `charts.<chart>.history`)
 * (Igge) a chart wakes up once right after the start, so transitions without label are taken without waiting for a change of an input
 * (Igge) chart option "super step": take transitions until none is valid anymore
+* (Igge) the arrows of transitions start and end where the states face each other (floating edges), their ends can be dragged along the border of the states or onto another state to move the transition there
 
 ### 0.1.1 (2026-10-25)
 * (Igge) renamed from "state-machine" to "statechart", because npm does not accept the old name (too similar to an existing package)

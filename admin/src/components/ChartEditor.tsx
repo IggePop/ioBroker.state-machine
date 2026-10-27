@@ -44,7 +44,15 @@ import LiveValuesPanel from "./LiveValuesPanel";
 import type { HistoryEntry } from "../../../src/lib/chart-runtime";
 import { generateChartCode } from "../../../src/lib/chart-codegen";
 import { createExport } from "../../../src/lib/chart-model";
-import type { Chart, ChartFunction, ChartNote, ChartState, ChartTransition } from "../../../src/lib/chart-model";
+import type {
+    Chart,
+    ChartFunction,
+    ChartNote,
+    ChartState,
+    ChartTransition,
+    EdgeAnchor,
+} from "../../../src/lib/chart-model";
+import type { EdgeEnd } from "./TransitionEdge";
 import { downloadJson } from "../download";
 import { translateDiagnostic } from "./CodeEditor";
 import {
@@ -65,6 +73,7 @@ import {
     reparentNodes,
 } from "../flow-model";
 import type { ChartFlowNode, ClipboardContent, Rect, TransitionFlowEdge } from "../flow-model";
+import { getParallelOffsets } from "../floating-edges";
 import { getDeclarations, validateChart } from "../../../src/lib/chart-validation";
 
 // defined outside the component, so React Flow does not re-create them on every render
@@ -350,6 +359,49 @@ function ChartEditorInner({
 
     // a double click selects the state/transition (first click) and shows its properties
     const showProperties = useCallback(() => setPanelTab("properties"), []);
+
+    /** Fixes an end of a transition on the border of its state (dragged in the editor), undefined: automatic */
+    const changeAnchor = useCallback(
+        (id: string, end: EdgeEnd, anchor: EdgeAnchor | undefined) => {
+            // all moves of a drag are one step
+            record(`transition:${id}:${end}Anchor`);
+            setEdges(eds =>
+                eds.map(e =>
+                    e.id === id && e.data
+                        ? { ...e, data: { ...e.data, transition: { ...e.data.transition, [`${end}Anchor`]: anchor } } }
+                        : e,
+                ),
+            );
+        },
+        [record],
+    );
+
+    /** Moves an end of a transition to another state (its grip was dropped on it) */
+    const reconnectTransition = useCallback(
+        (id: string, end: EdgeEnd, stateId: string) => {
+            record(`transition:${id}:reconnect`);
+            setDropTarget(null);
+            setEdges(eds => {
+                // a new source: the transition is checked after the other transitions of that state
+                const priority = eds.filter(e => e.source === stateId && e.id !== id).length + 1;
+                return eds.map(e => {
+                    if (e.id !== id || !e.data) {
+                        return e;
+                    }
+                    const moved = end === "source" ? { source: stateId } : { target: stateId };
+                    const transition = {
+                        ...e.data.transition,
+                        ...moved,
+                        // the end is placed automatically on the new state
+                        [`${end}Anchor`]: undefined,
+                        ...(end === "source" ? { priority } : {}),
+                    };
+                    return { ...e, ...moved, data: { ...e.data, transition } };
+                });
+            });
+        },
+        [record],
+    );
 
     /**
      * Adds a node in the middle of the visible area and selects it
@@ -652,24 +704,31 @@ function ChartEditorInner({
     const displayEdges = useMemo(() => {
         const outgoing: Record<string, number> = {};
         edges.forEach(e => (outgoing[e.source] = (outgoing[e.source] || 0) + 1));
-        return edges.map(
-            e =>
-                ({
-                    ...e,
-                    // like the nodes: no zooming on double click and no panning when dragging the edge
-                    className: "nopan",
-                    markerEnd,
-                    data: {
-                        ...e.data,
-                        showPriority: outgoing[e.source] > 1,
-                        // a transition to an own child which keeps the parent active
-                        inner: isDescendantNode(nodes, e.source, e.target) && !e.data?.transition.reenterParent,
-                        problems: problems.get(e.id),
-                        flash: flashing.has(e.id),
-                    },
-                }) as TransitionFlowEdge,
-        );
-    }, [edges, nodes, problems, flashing]);
+        const offsets = getParallelOffsets(edges);
+        return edges.map(e => {
+            const toChild = isDescendantNode(nodes, e.source, e.target);
+            const toParent = !toChild && isDescendantNode(nodes, e.target, e.source);
+            return {
+                ...e,
+                // like the nodes: no zooming on double click and no panning when dragging the edge
+                className: "nopan",
+                markerEnd,
+                data: {
+                    ...e.data,
+                    showPriority: outgoing[e.source] > 1,
+                    // a transition to an own child which keeps the parent active
+                    inner: toChild && !e.data?.transition.reenterParent,
+                    nesting: toChild ? "toChild" : toParent ? "toParent" : undefined,
+                    offset: offsets.get(e.id),
+                    problems: problems.get(e.id),
+                    flash: flashing.has(e.id),
+                    onAnchorChange: changeAnchor,
+                    onReconnect: reconnectTransition,
+                    onReconnectPreview: setDropTarget,
+                },
+            } as TransitionFlowEdge;
+        });
+    }, [edges, nodes, problems, flashing, changeAnchor, reconnectTransition]);
 
     /**
      * Selects a transition, e.g. from the history
@@ -794,6 +853,8 @@ function ChartEditorInner({
                         onNodeDragStop={onNodeDragStop}
                         // children above their parents, transitions of children above the parents as well
                         zIndexMode="auto"
+                        // the grips to move the ends of the selected transition are on the borders of the states
+                        elevateEdgesOnSelect
                         connectionMode={ConnectionMode.Loose}
                         colorMode={theme.palette.mode}
                         snapToGrid

@@ -1,5 +1,12 @@
 {
-    "require": ["test/mocha.setup.js"],
-    "node-option": ["import=tsx"],
-    "watch-files": ["src/**/*.test.ts"]
+    "require": [
+        "test/mocha.setup.js"
+    ],
+    "node-option": [
+        "import=tsx"
+    ],
+    "watch-files": [
+        "src/**/*.test.ts",
+        "admin/src/**/*.test.ts"
+    ]
 }

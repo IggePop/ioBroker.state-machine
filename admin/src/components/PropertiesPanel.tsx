@@ -266,6 +266,24 @@ function TransitionProperties({
                 value={transition.comment}
                 onChange={comment => onChange({ comment })}
             />
+            <Box>
+                <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={!transition.sourceAnchor && !transition.targetAnchor}
+                    onClick={() => onChange({ sourceAnchor: undefined, targetAnchor: undefined })}
+                >
+                    {I18n.t("Set ends automatically")}
+                </Button>
+                <Typography
+                    variant="caption"
+                    component="div"
+                    color="text.secondary"
+                    sx={{ mt: 0.5 }}
+                >
+                    {I18n.t("anchorsHelp")}
+                </Typography>
+            </Box>
             <Button
                 color="error"
                 variant="outlined"
